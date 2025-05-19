@@ -48,49 +48,46 @@ function EnterNew1v1Page({ onBackToMenu }) {
 
   // Handle form submission
   async function handleSubmit(type = "continue") {
-    setErrorMsg("");
-    setSuccessMsg("");
-    setSubmitting(true);
+  setErrorMsg("");
+  setSuccessMsg("");
+  setSubmitting(true);
 
-    // Compose match record
-    const matchData = {
-      playerA,
-      playerB,
-      winner,
-      runout: runout ? winner : "",
-      date: new Date().toISOString().split("T")[0] // "YYYY-MM-DD"
-    };
+  // Compose match record as URL params
+  const params = new URLSearchParams({
+    action: "addMatch",
+    playerA,
+    playerB,
+    winner,
+    runout: runout ? winner : "",
+    date: new Date().toISOString().split("T")[0]
+  });
 
-    try {
-      const res = await fetch(API_ADD_MATCH, {
-        method: "POST",
-        body: JSON.stringify(matchData),
-        headers: {
-          "Content-Type": "application/json"
-        }
-      });
-      const result = await res.json();
-      if (result.success) {
-        setSuccessMsg("Match logged successfully!");
-        if (type === "continue") {
-          // Reset but set Player A to winner
-          setPlayerA(winner);
-          setPlayerB("");
-          setWinner("");
-          setRunout(false);
-        } else if (type === "end") {
-          onBackToMenu();
-        }
-        // Optionally: refresh leaderboard/stat data in parent if needed
-      } else {
-        setErrorMsg(result.error || "Unknown error logging match.");
+  // Use GET with params
+  const url = `https://script.google.com/macros/s/AKfycby-Dv1y7C1j_cZ2wlliTBHqQh5giqfEyGLT8ZIhn8W9Yi4hx1S0qEtvDeO3eiiG1SQMHw/exec?${params.toString()}`;
+
+  try {
+    const res = await fetch(url);
+    const result = await res.json();
+    if (result.success) {
+      setSuccessMsg("Match logged successfully!");
+      if (type === "continue") {
+        setPlayerA(winner);
+        setPlayerB("");
+        setWinner("");
+        setRunout(false);
+      } else if (type === "end") {
+        onBackToMenu();
       }
-    } catch (e) {
-      setErrorMsg("Failed to connect to server.");
-    } finally {
-      setSubmitting(false);
+    } else {
+      setErrorMsg(result.error || "Unknown error logging match.");
     }
+  } catch (e) {
+    setErrorMsg("Failed to connect to server.");
+  } finally {
+    setSubmitting(false);
   }
+}
+
 
   // Cancel: just return to main menu
   function handleCancel() {
