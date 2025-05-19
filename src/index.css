@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -- GLOBAL ROOT COLORS -- */
+:root {
+  --accent: #20e878;
+  --accent-glow: #50ff9e;
+  --bg-dark: #182427;
+  --bg-gradient: linear-gradient(135deg, #1a2227 0%, #222f25 100%);
+  --glass-bg: rgba(24,36,39,0.74);
+  --glass-border: 1.5px solid #50ff9e33;
+  --shadow: 0 2px 24px #11cf6b20, 0 2px 16px #14321544;
+  --input-bg: #193225cc;
+  --input-border: #38d99e50;
+  --input-focus: #50ff9e;
+  --text-light: #ebebeb;
+  --text-dark: #223629;
+  --menu-glass: rgba(32, 232, 120, 0.07);
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  color: var(--text-light);
+  background: var(--bg-gradient);
+  background-image: repeating-linear-gradient(120deg,#1b3c2b22 0 2px,transparent 2px 24px);
+}
+
+/* Reset & base styles */
+html, body {
+  min-height: 100vh;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  background: #181F25;
+  color: #f9f9f9;
+}
+
+/* Modern Card look for containers */
+.page-container, .card {
+  background: #181F25;
+  border-radius: 18px;
+  box-shadow: 0 4px 32px #39ecb540, 0 1.5px 0 #252e38 inset;
+  padding: 2.2em 1.5em 5em 1.5em;
+  max-width: 700px;
+  margin: 2em auto;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  color: #e7ffe0;
+  font-weight: 700;
+  margin-bottom: 0.8em;
+  text-align: center;
+}
+
+h1 {
+  font-size: 2.1em;
+  letter-spacing: -0.01em;
+  margin-top: 0.2em;
+  text-align: center;
+}
+
+/* Inputs & selects */
+input, select, textarea {
+  background: #1F2830;
+  color: #e7ffe0;
+  border: 1.5px solid #39ecb5;
+  border-radius: 15px;
+  font-size: 1.15em;
+  padding: 0.9em 1.1em;
+  margin: 0.5em 0 1em 0;
+  transition: border 0.15s, box-shadow 0.15s;
+  outline: none;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #78FFA3;
+  box-shadow: 0 0 0 2px #57efb288;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  color: #c8ffd3;
+  margin-bottom: 0.15em;
+  letter-spacing: 0.015em;
+}
+
+/* Buttons */
+button, .btn {
+  background: linear-gradient(90deg, #78FFA3 0%, #42E2F7 100%);
+  color: #181F25;
+  font-weight: 700;
+  font-size: 1.2em;
+  border: none;
+  border-radius: 17px;
+  padding: 1.15em 0;
+  margin: 0.7em 0;
+  width: 100%;
+  box-shadow: 0 2px 18px #57efb2c4;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.1s;
+  align-self: "center";
+}
+button:active, .btn:active {
+  transform: scale(0.98);
+}
+button:hover, .btn:hover {
+  background: linear-gradient(90deg, #42E2F7 0%, #78FFA3 100%);
+}
+
+select, option {
+  color-scheme: dark;
+}
+
+/* Placeholder color */
+::placeholder {
+  color: #c5ffe3;
+  opacity: 1;
+}
+
+/* VS separator */
+.vs-separator {
+  font-size: 1.4em;
+  color: #78FFA3;
+  font-weight: 900;
+  padding: 0.3em 0.4em;
+  margin: 0 0.6em;
+  letter-spacing: 0.04em;
+}
+
+/* Fixed Main Menu Button */
+.fixed-bottom-nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  width: 100vw;
+  z-index: 100;
+  border-radius: 0;
+  box-shadow: 0 -2px 28px #57efb2b2;
+  background: linear-gradient(90deg, #78FFA3 0%, #42E2F7 100%);
+  color: #181F25;
+  font-size: 1.18em;
+  font-weight: 700;
+  padding: 1.2em 0 1.2em 0;
+  border: none;
+  text-align: center;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
+
+/* Responsive tweaks */
+@media (max-width: 600px) {
+  .page-container, .card {
+    padding: 1em 0.5em 6em 0.5em;
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+  }
+  button, .btn {
+    font-size: 1.1em;
+    padding: 1em 0.3em;
+  }
+}
