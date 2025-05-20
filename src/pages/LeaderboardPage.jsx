@@ -1,144 +1,122 @@
 // src/pages/LeaderboardPage.jsx
 
 import React, { useEffect, useState } from "react";
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
-} from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
-// Change these URLs if your endpoint changes:
-const API_PLAYERS = "https://script.google.com/macros/s/AKfycby-Dv1y7C1j_cZ2wlliTBHqQh5giqfEyGLT8ZIhn8W9Yi4hx1S0qEtvDeO3eiiG1SQMHw/exec?action=getPlayers";
-const API_RATING_HISTORY = "https://script.google.com/macros/s/AKfycby-Dv1y7C1j_cZ2wlliTBHqQh5giqfEyGLT8ZIhn8W9Yi4hx1S0qEtvDeO3eiiG1SQMHw/exec?action=getRatingHistory";
+// Helper: Get display name
+function getDisplayName(player) {
+  return player.nickname || player.name;
+}
 
-// Helper: Get the display name (nickname or name)
-const getDisplayName = (player) => player.nickname ? player.nickname : player.name;
+// Helper: Medal icons
+const rankIcons = ["🥇", "🥈", "🥉"];
 
-// Helper: Medal icon for 1st, 2nd, 3rd
-const getMedal = (rank) => {
-  if (rank === 1) return "🥇";
-  if (rank === 2) return "🥈";
-  if (rank === 3) return "🥉";
-  return rank;
-};
-
-function LeaderboardPage({ onBackToMenu, onPlayerClick }) {
+export default function LeaderboardPage({ onPlayerClick, onBackToMenu }) {
   const [players, setPlayers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [ratingHistory, setRatingHistory] = useState([]);
-  const [chartData, setChartData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch players
+  // Fetch players and rating history on mount
   useEffect(() => {
-    setLoading(true);
-    fetch(API_PLAYERS)
-      .then(res => res.json())
-      .then(playerData => {
-        // Sort players by Current Rating descending, fallback to startingRating
-        const sorted = [...playerData].sort((a, b) =>
-          (parseInt(b["Current Rating"] || b.startingRating || 0, 10)) -
-          (parseInt(a["Current Rating"] || a.startingRating || 0, 10))
-        );
-        setPlayers(sorted);
-        setLoading(false);
-      });
+    async function fetchData() {
+      setLoading(true);
+      const [playersRes, historyRes] = await Promise.all([
+        fetch("/api/getPlayers").then(res => res.json()),
+        fetch("/api/getRatingHistory").then(res => res.json())
+      ]);
+      setPlayers(playersRes);
+      setRatingHistory(historyRes);
+      setLoading(false);
+    }
+    fetchData();
   }, []);
 
-  // Fetch rating history for chart
-  useEffect(() => {
-    fetch(API_RATING_HISTORY)
-      .then(res => res.json())
-      .then(history => {
-        setRatingHistory(history);
-      });
-  }, []);
+  // Sort players by current rating DESC
+  const sortedPlayers = [...players].sort((a, b) => {
+    // Use Current Rating; fallback to startingRating if missing
+    const aRating = parseInt(a["Current Rating"] || a["startingRating"] || "0", 10);
+    const bRating = parseInt(b["Current Rating"] || b["startingRating"] || "0", 10);
+    return bRating - aRating;
+  });
 
-  // Transform rating history for charting
-  useEffect(() => {
-    if (!ratingHistory.length || !players.length) return;
+  // For chart: collect all unique rating history dates
+  const dates = Array.from(new Set(ratingHistory.map(r => r.date))).sort();
 
-    // Assume each entry: {playerId, name, nickname, date, rating}
-    // Group by date, so each object is { date, player1: rating, player2: rating, ... }
-    const dateMap = {};
-    ratingHistory.forEach(entry => {
-      const dateKey = entry.date;
-      if (!dateMap[dateKey]) dateMap[dateKey] = { date: dateKey };
-      dateMap[dateKey][getDisplayName(entry)] = parseInt(entry.rating, 10);
+  // Build data: each point is { date, [playerId1]: rating, [playerId2]: rating, ... }
+  const chartData = dates.map(date => {
+    const entry = { date };
+    players.forEach(p => {
+      // Find the latest rating for player on/before this date
+      const history = ratingHistory.filter(r => r.playerId === p.playerId && r.date <= date);
+      if (history.length > 0) {
+        // Get the last entry on/before this date
+        entry[p.playerId] = parseInt(history[history.length - 1].rating, 10);
+      } else {
+        entry[p.playerId] = parseInt(p.startingRating || "0", 10);
+      }
     });
-    // Convert to array, sorted by date
-    const chartRows = Object.values(dateMap).sort((a, b) =>
-      new Date(a.date) - new Date(b.date)
-    );
-    setChartData(chartRows);
-  }, [ratingHistory, players]);
+    return entry;
+  });
 
-  if (loading) return <div style={{ color: "var(--text-light)", textAlign: "center", marginTop: 32 }}>Loading...</div>;
+  if (loading) return <div style={{ color: "#fff", textAlign: "center", marginTop: 36 }}>Loading...</div>;
 
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 700, marginTop: 30, marginBottom: 30 }}>
-        <h1 style={{ fontSize: "2em", color: "var(--accent)", textAlign: "center", marginBottom: "0.6em" }}>
+      <div className="page-container" style={{ width: "100%", maxWidth: 540, marginTop: 28, marginBottom: 28 }}>
+        <h1 style={{ color: "var(--accent)", fontWeight: "bold", fontSize: "2.1em", textAlign: "center" }}>
           Leaderboard
         </h1>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-            <thead>
-              <tr style={{ background: "transparent", color: "var(--text-light)", fontSize: "1.1em" }}>
-                <th style={{ textAlign: "center", width: 52 }}>#</th>
-                <th style={{ textAlign: "left" }}>Player</th>
-                <th style={{ textAlign: "center" }}>Current Rating</th>
+        {/* Leaderboard Table */}
+        <table style={{ width: "100%", marginTop: 24, borderCollapse: "separate", borderSpacing: 0 }}>
+          <thead>
+            <tr style={{ color: "#fff", background: "none" }}>
+              <th style={{ width: 56, textAlign: "center" }}>Rank</th>
+              <th style={{ textAlign: "left" }}>Player</th>
+              <th style={{ textAlign: "right" }}>Rating</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedPlayers.map((player, idx) => (
+              <tr
+                key={player.playerId}
+                style={{ background: "rgba(32,42,48,0.92)", cursor: "pointer" }}
+                onClick={() => onPlayerClick && onPlayerClick(player)}
+              >
+                <td style={{ textAlign: "center", fontSize: "1.35em", fontWeight: "700" }}>
+                  {rankIcons[idx] || (idx + 1)}
+                </td>
+                <td style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0" }}>
+                  <img
+                    src={player.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(getDisplayName(player))}`}
+                    alt={getDisplayName(player)}
+                    style={{
+                      width: 44, height: 44, borderRadius: "50%",
+                      border: `3px solid ${player.color || "#fff"}`,
+                      objectFit: "cover", background: "#222"
+                    }}
+                  />
+                  <span style={{
+                    fontWeight: "600", color: player.color || "#78FFA3", fontSize: "1.17em"
+                  }}>
+                    {getDisplayName(player)}
+                  </span>
+                </td>
+                <td style={{
+                  textAlign: "right", fontWeight: 700, color: "#fff", fontSize: "1.17em"
+                }}>
+                  {player["Current Rating"] || player.startingRating}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {players.map((player, idx) => (
-                <tr
-                  key={player.playerId}
-                  style={{
-                    borderLeft: `6px solid ${player.color}`,
-                    background: "rgba(28,38,44,0.86)",
-                    cursor: "pointer",
-                    transition: "background 0.12s",
-                  }}
-                  onClick={() => onPlayerClick && onPlayerClick(player)}
-                  onMouseOver={e => e.currentTarget.style.background = "rgba(40,56,63,1)"}
-                  onMouseOut={e => e.currentTarget.style.background = "rgba(28,38,44,0.86)"}
-                >
-                  <td style={{ textAlign: "center", fontWeight: "bold", fontSize: "1.2em" }}>
-                    {getMedal(idx + 1)}
-                  </td>
-                  <td style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <img
-                      src={player.avatarUrl || "https://ui-avatars.com/api/?name=" + encodeURIComponent(getDisplayName(player))}
-                      alt={player.name}
-                      style={{
-                        width: 38, height: 38,
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                        border: `2.5px solid ${player.color}`,
-                        background: "#111",
-                        marginRight: 8,
-                      }}
-                    />
-                    <span style={{
-                      fontWeight: 600,
-                      fontSize: "1.1em",
-                      color: player.color,
-                    }}>
-                      {getDisplayName(player)}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: "center", fontWeight: 700, fontSize: "1.18em", color: "#78FFA3" }}>
-                    {player["Current Rating"] || player.startingRating}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {/* Chart Section */}
-        <h2 style={{ margin: "1.7em 0 0.2em 0", color: "#fff", fontSize: "1.13em", textAlign: "center" }}>
-          Player Rating History
+            ))}
+          </tbody>
+        </table>
+
+        {/* ELO Chart */}
+        <h2 style={{ margin: "2.3em 0 0.7em 0", color: "#fff", fontSize: "1.13em", textAlign: "center" }}>
+          ELO Rating History
         </h2>
-        <div style={{ width: "100%", minHeight: 270, margin: "0 auto" }}>
-          <ResponsiveContainer width="100%" height={270}>
+        <div style={{ width: "100%", minHeight: 240, margin: "0 auto" }}>
+          <ResponsiveContainer width="100%" height={240}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#28343a" />
               <XAxis dataKey="date" stroke="#b3ffc3" fontSize={13} />
@@ -152,27 +130,25 @@ function LeaderboardPage({ onBackToMenu, onPlayerClick }) {
                   fontSize: "1em",
                 }}
               />
-              <Legend />
-              {players.map((player) => (
+              {players.map(player => (
                 <Line
                   key={player.playerId}
                   type="monotone"
-                  dataKey={getDisplayName(player)}
-                  stroke={player.color}
-                  strokeWidth={2.5}
+                  dataKey={player.playerId}
+                  stroke={player.color || "#78FFA3"}
+                  strokeWidth={3}
                   dot={false}
-                  isAnimationActive={true}
                   name={getDisplayName(player)}
+                  isAnimationActive={true}
                 />
               ))}
+              <Legend />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        {/* Return to Main Menu */}
-        
       </div>
+      {/* Fixed Return to Main Menu button (handled by App.jsx) */}
+      <div style={{ height: 60 }} />
     </div>
   );
 }
-
-export default LeaderboardPage;

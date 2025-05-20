@@ -1,124 +1,100 @@
-// src/pages/PlayerStatsPage.jsx
-
 import React, { useEffect, useState } from "react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 
-// Change these URLs if your endpoint changes:
-const API_MATCHES = "https://script.google.com/macros/s/AKfycby-Dv1y7C1j_cZ2wlliTBHqQh5giqfEyGLT8ZIhn8W9Yi4hx1S0qEtvDeO3eiiG1SQMHw/exec?action=getMatches";
-const API_RATING_HISTORY = "https://script.google.com/macros/s/AKfycby-Dv1y7C1j_cZ2wlliTBHqQh5giqfEyGLT8ZIhn8W9Yi4hx1S0qEtvDeO3eiiG1SQMHw/exec?action=getRatingHistory";
-
+// Helper
 function getDisplayName(player) {
-  return player.nickname ? player.nickname : player.name;
+  return player.nickname || player.name;
 }
 
-// Helper to get opponent object
-function getOpponent(match, playerId, allPlayers) {
-  const oppId = match.player1 === playerId ? match.player2 : match.player1;
-  return allPlayers?.find((p) => p.playerId === oppId) || { name: oppId, nickname: "" };
-}
-
-function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
+export default function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
+  const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
   const [ratingHistory, setRatingHistory] = useState([]);
-  const [allPlayers, setAllPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch matches, all players, and rating history
   useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetch(API_MATCHES).then((res) => res.json()),
-      fetch("https://script.google.com/macros/s/AKfycby-Dv1y7C1j_cZ2wlliTBHqQh5giqfEyGLT8ZIhn8W9Yi4hx1S0qEtvDeO3eiiG1SQMHw/exec?action=getPlayers").then((res) => res.json()),
-      fetch(API_RATING_HISTORY).then((res) => res.json()),
-    ]).then(([matchData, playersData, ratingData]) => {
-      setMatches(matchData);
-      setAllPlayers(playersData);
-      setRatingHistory(ratingData);
+    async function fetchData() {
+      setLoading(true);
+      const [playersRes, matchesRes, historyRes] = await Promise.all([
+        fetch("/api/getPlayers").then(res => res.json()),
+        fetch("/api/getMatches").then(res => res.json()),
+        fetch("/api/getRatingHistory").then(res => res.json())
+      ]);
+      setPlayers(playersRes);
+      setMatches(matchesRes);
+      setRatingHistory(historyRes);
       setLoading(false);
-    });
+    }
+    fetchData();
   }, [player.playerId]);
 
   if (!player) return null;
-  if (loading) return <div style={{ color: "var(--text-light)", textAlign: "center", marginTop: 32 }}>Loading...</div>;
+  if (loading) return <div style={{ color: "#fff", textAlign: "center", marginTop: 36 }}>Loading...</div>;
 
   // Filter matches for this player
   const playerMatches = matches
-    .filter(
-      (m) => m.player1 === player.playerId || m.player2 === player.playerId
-    )
-    .sort((a, b) => new Date(b.date) - new Date(a.date)); // newest first
+    .filter(m => m.playerAId === player.playerId || m.playerBId === player.playerId)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // Compute quick stats
+  // Quick stats
   let wins = 0, losses = 0, runouts = 0;
-  let streak = 0, maxStreak = 0, currentStreakType = "", winPercent = 0;
-  const oppWinMap = {}, oppLossMap = {};
-  let prevResult = null, currStreak = 0;
-  playerMatches.forEach((m) => {
-    const isWinner = m.winner === player.playerId || m.winner === getDisplayName(player);
-    const isLoser = !isWinner && (m.player1 === player.playerId || m.player2 === player.playerId);
-    const oppId = m.player1 === player.playerId ? m.player2 : m.player1;
-
+  let oppWinMap = {}, oppLossMap = {};
+  let prevResult = null, streak = 0, maxStreak = 0, currentStreakType = "";
+  playerMatches.forEach(m => {
+    const isWinner = m.winnerId === player.playerId;
+    const oppId = m.playerAId === player.playerId ? m.playerBId : m.playerAId;
     if (isWinner) {
       wins += 1;
       oppWinMap[oppId] = (oppWinMap[oppId] || 0) + 1;
-      if (prevResult === "W" || prevResult === null) currStreak += 1;
-      else currStreak = 1;
+      if (prevResult === "W" || prevResult === null) streak += 1;
+      else streak = 1;
       prevResult = "W";
-    } else if (isLoser) {
+    } else {
       losses += 1;
       oppLossMap[oppId] = (oppLossMap[oppId] || 0) + 1;
-      if (prevResult === "L" || prevResult === null) currStreak += 1;
-      else currStreak = 1;
+      if (prevResult === "L" || prevResult === null) streak += 1;
+      else streak = 1;
       prevResult = "L";
     }
-    // Runouts
-    if (m.runout && (m.runout === player.playerId || m.runout === getDisplayName(player))) {
-      runouts += 1;
-    }
-    // Track longest streak type and value
-    if (currStreak > maxStreak) {
-      maxStreak = currStreak;
-      currentStreakType = prevResult;
-    }
+    // Runouts: For now, let's assume if winner got a runout it's tracked on Players tab already.
   });
-  const matchesPlayed = wins + losses;
-  winPercent = matchesPlayed ? Math.round((wins / matchesPlayed) * 100) : 0;
 
-  // Compute Most Wins/Losses Against
+  const matchesPlayed = wins + losses;
+  const winPercent = matchesPlayed ? Math.round((wins / matchesPlayed) * 100) : 0;
+
+  // Most Wins/Losses vs
   const mostWinsId = Object.keys(oppWinMap).reduce((a, b) => oppWinMap[a] > oppWinMap[b] ? a : b, null);
   const mostLossesId = Object.keys(oppLossMap).reduce((a, b) => oppLossMap[a] > oppLossMap[b] ? a : b, null);
 
-  const mostWinsOpponent = allPlayers.find(p => p.playerId === mostWinsId) || { name: mostWinsId || "—", nickname: "" };
-  const mostLossesOpponent = allPlayers.find(p => p.playerId === mostLossesId) || { name: mostLossesId || "—", nickname: "" };
+  const mostWinsOpponent = players.find(p => p.playerId === mostWinsId) || { name: mostWinsId || "—", nickname: "" };
+  const mostLossesOpponent = players.find(p => p.playerId === mostLossesId) || { name: mostLossesId || "—", nickname: "" };
 
-  // Filter rating history for this player
+  // Recent matches (last 10)
+  const recentMatches = playerMatches.slice(0, 10);
+
+  // Rating history for this player
   const playerRatings = ratingHistory
-    .filter(r => r.playerId === player.playerId || getDisplayName(player) === r.name || getDisplayName(player) === r.nickname)
+    .filter(r => r.playerId === player.playerId)
     .map(r => ({
       date: r.date,
       rating: parseInt(r.rating, 10)
     }))
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  // Recent matches (last 10)
-  const recentMatches = playerMatches.slice(0, 10);
-
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
       <div className="page-container" style={{ width: "100%", maxWidth: 520, marginTop: 30, marginBottom: 30 }}>
         <h1 style={{ fontSize: "2em", color: "var(--accent)", textAlign: "center" }}>
-          {player.nickname ? player.nickname : player.name}
+          {player.nickname || player.name}
         </h1>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "1.6em 0" }}>
           <img
             src={player.avatarUrl || "https://ui-avatars.com/api/?name=" + encodeURIComponent(player.name)}
             alt={player.name}
             style={{
-              width: 96,
-              height: 96,
-              borderRadius: "50%",
+              width: 96, height: 96, borderRadius: "50%",
               border: `3.5px solid ${player.color}`,
               objectFit: "cover",
               marginBottom: 16,
@@ -128,6 +104,12 @@ function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
           <div style={{ fontWeight: 600, fontSize: "1.15em", color: player.color }}>
             {player.name}
           </div>
+          <div style={{
+            fontWeight: 700, color: "#fff", background: player.color, borderRadius: 8,
+            padding: "2px 10px", marginTop: 8, fontSize: "1.15em"
+          }}>
+            Rating: {player["Current Rating"] || player.startingRating}
+          </div>
         </div>
         <div style={{
           display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 24,
@@ -136,7 +118,7 @@ function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
           <div><b>Matches:</b> {matchesPlayed}</div>
           <div><b>Wins:</b> {wins}</div>
           <div><b>Losses:</b> {losses}</div>
-          <div><b>Runouts:</b> {runouts}</div>
+          <div><b>Runouts:</b> {player.Runouts || 0}</div>
           <div>
             <b>Most Wins vs:</b>{" "}
             {mostWinsOpponent.nickname
@@ -156,11 +138,12 @@ function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
           <div>
             <b>Current Streak:</b>{" "}
             {streak > 0
-              ? `${streak}${currentStreakType === "W" ? "W" : "L"}`
+              ? `${streak}${prevResult === "W" ? "W" : "L"}`
               : "—"}
           </div>
           <div><b>Win %:</b> {winPercent}%</div>
         </div>
+
         {/* Recent Matches Table */}
         <h2 style={{ margin: "1.5em 0 0.5em 0", color: "#fff", fontSize: "1.13em", textAlign: "center" }}>
           Recent Matches
@@ -183,15 +166,12 @@ function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
                 </tr>
               )}
               {recentMatches.map((m, idx) => {
-                // Opponent object
-                const opponent = allPlayers.find(
-                  (p) => p.playerId === (m.player1 === player.playerId ? m.player2 : m.player1)
-                ) || { name: m.player1 === player.playerId ? m.player2 : m.player1, nickname: "" };
-                // Scores
-                const playerScore = m.player1 === player.playerId ? m.score1 || m.score : m.score2 || m.score;
-                const oppScore = m.player1 === player.playerId ? m.score2 || m.opponentScore : m.score1 || m.opponentScore;
-                // Result
-                const isWinner = m.winner === player.playerId || m.winner === getDisplayName(player);
+                const opponent = players.find(
+                  (p) => p.playerId === (m.playerAId === player.playerId ? m.playerBId : m.playerAId)
+                ) || { name: m.playerAId === player.playerId ? m.playerBId : m.playerAId, nickname: "" };
+                const playerScore = m.playerAId === player.playerId ? m.scoreA : m.scoreB;
+                const oppScore = m.playerAId === player.playerId ? m.scoreB : m.scoreA;
+                const isWinner = m.winnerId === player.playerId;
                 const result = isWinner ? "Win" : "Loss";
                 return (
                   <tr key={idx} style={{ background: "rgba(32,42,48,0.85)" }}>
@@ -199,14 +179,14 @@ function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
                     <td style={{ textAlign: "center", color: opponent.color || "#e7ffe0", fontWeight: 600 }}>
                       <span
                         style={{ cursor: "pointer", textDecoration: "underline dotted" }}
-                        onClick={() => window.alert("Show stats for " + (opponent.nickname || opponent.name))}
+                        onClick={() => opponent.playerId && opponent.playerId !== player.playerId && window.alert("Show stats for " + (opponent.nickname || opponent.name))}
                       >
                         {opponent.nickname ? opponent.nickname : opponent.name}
                       </span>
                     </td>
-                    <td style={{ textAlign: "center" }}>{m.race || m.type || "—"}</td>
+                    <td style={{ textAlign: "center" }}>{m.gameType || "—"}</td>
                     <td style={{ textAlign: "center" }}>
-                      {playerScore !== undefined && oppScore !== undefined
+                      {playerScore && oppScore
                         ? `${playerScore} - ${oppScore}`
                         : "—"}
                     </td>
@@ -219,6 +199,7 @@ function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
             </tbody>
           </table>
         </div>
+
         {/* ELO History Chart */}
         <h2 style={{ margin: "1.6em 0 0.4em 0", color: "#fff", fontSize: "1.13em", textAlign: "center" }}>
           ELO Rating Over Time
@@ -252,11 +233,7 @@ function PlayerStatsPage({ player, onBackToLeaderboard, onBackToMenu }) {
         </div>
       </div>
       {/* Navigation Buttons handled by App.jsx (fixed at bottom) */}
-      {(onBackToLeaderboard || onBackToMenu) && (
-        <div style={{ height: 60 }} />  // Space for fixed bottom nav
-      )}
+      <div style={{ height: 60 }} />
     </div>
   );
 }
-
-export default PlayerStatsPage;

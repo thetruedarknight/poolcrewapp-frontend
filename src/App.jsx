@@ -1,220 +1,175 @@
-// src/App.jsx
-
 import React, { useState } from "react";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import PlayerStatsPage from "./pages/PlayerStatsPage";
+import AddPlayerPage from "./pages/AddPlayerPage";
 import EnterNew1v1Page from "./pages/EnterNew1v1Page";
+import EnterNewRacePage from "./pages/EnterNewRacePAge";
+import TrainingLogPage from "./pages/TrainingLogPage";
+import ViewTrainingDataPage from "./pages/ViewTrainingPage";
+import HeadToHeadPage from "./pages/HeadToHeadPage";
+import MatchHistoryPage from "./pages/MatchHistoryPage";
+// import MainMenu from "./pages/MainMenu"; // Uncomment if you have a menu page
 
-// Menu options with icons (removed "View Individual Stats")
-const menuOptions = [
-  {
-    label: "View Leaderboard",
-    icon: "🏆",
-    view: "leaderboard",
-  },
-  {
-    label: "View Match History",
-    icon: "📜",
-    view: "matchHistory",
-  },
-  {
-    label: "Enter New 1v1",
-    icon: "⚔️",
-    view: "new1v1",
-  },
-  {
-    label: "Enter New Race",
-    icon: "🏁",
-    view: "newRace",
-  },
-  // {
-  //   label: "View Individual Stats",
-  //   icon: "👤",
-  //   view: "playerStats",
-  // },
-  {
-    label: "View Head to Head Stats",
-    icon: "🤝",
-    view: "headToHead",
-  },
-  {
-    label: "Add New Player",
-    icon: "➕",
-    view: "addPlayer",
-  },
-  {
-    label: "Enter Training Session",
-    icon: "🎱",
-    view: "trainingSession",
-  },
-  {
-    label: "View Training Data",
-    icon: "📊",
-    view: "trainingData",
-  },
-];
+function App() {
+  const [view, setView] = useState("menu"); // "menu" | "leaderboard" | "playerStats"
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  
 
-function MainMenu({ onSelect }) {
+  // Main Menu (replace with your MainMenu component if you have it)
+  function MainMenu() {
+  const menuOptions = [
+    { label: "View Leaderboard", value: "leaderboard" },
+    { label: "View Match History", value: "matchHistory" },
+    { label: "Enter New 1v1", value: "enter1v1" },
+    { label: "Enter New Race", value: "enterRace" },
+    { label: "Head to Head Comparison", value: "headToHead"},
+    { label: "Add New Player", value: "addPlayer" },
+    { label: "Enter Training Session", value: "trainingLog" },
+    { label: "View Training Data", value: "viewTrainingData" }
+    
+    
+    // Add more menu options here if you want!
+  ];
+
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-start"
-      style={{ background: "var(--bg-gradient)" }}
+      style={{
+        minHeight: "100vh",
+        width: "100vw",
+        background: "var(--bg-gradient)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center"
+      }}
     >
-      <main className="w-full flex-1 flex flex-col items-center px-2 py-8">
-        <div className="w-full flex flex-col items-center mb-6">
-          <h1
+      <h1
+        style={{
+          color: "var(--accent)",
+          fontWeight: "bold",
+          fontSize: "2.2em",
+          marginBottom: 36,
+          textAlign: "center",
+        }}
+      >
+        Pool Crew
+      </h1>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "22px",
+          width: "100%",
+          maxWidth: 320,
+        }}
+      >
+        {menuOptions.map((opt) => (
+          <button
+            key={opt.value}
+            className="btn"
             style={{
-              color: "var(--accent)",
-              fontWeight: "bold",
-              fontSize: "2.4em",
-              letterSpacing: "-0.02em",
-              textShadow: "0 2px 24px #11cf6b55",
-              marginBottom: 0,
+              width: 220,
+              fontSize: "1.15em",
+              borderRadius: 17,
+              fontWeight: 700,
               textAlign: "center",
-              width: "100%",
-              display: "block",
+              background: "linear-gradient(90deg, #20e878 0%, #42E2F7 100%)",
+              boxShadow: "0 2px 18px #57efb2c4"
             }}
+            onClick={() => setView(opt.value)}
           >
-            PoolCrew
-          </h1>
-        </div>
-
-        <div
-          className="grid gap-4 w-full"
-          style={{
-            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-            maxWidth: 520,
-            margin: "0 auto",
-          }}
-        >
-          {menuOptions.map((option) => (
-            <button
-              key={option.label}
-              className="flex flex-col items-center justify-center rounded-2xl shadow-lg px-4 py-6 transition transform hover:scale-105"
-              style={{
-                background: "var(--glass-bg)",
-                border: "var(--glass-border)",
-                boxShadow: "var(--shadow)",
-                color: "var(--text-light)",
-                minHeight: 120,
-                fontSize: "1.15em",
-                fontWeight: 600,
-                cursor: "pointer",
-                outline: "none",
-              }}
-              onClick={() => onSelect(option.view)}
-            >
-              <span
-                style={{
-                  fontSize: "2.3em",
-                  marginBottom: 8,
-                  color: "var(--accent-glow)",
-                  textShadow: "0 2px 16px var(--accent-glow)",
-                }}
-              >
-                {option.icon}
-              </span>
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </main>
+            {opt.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
-// Fixed bottom button for all non-menu views
-function FixedBottomButton({ children, onClick }) {
-  return (
-    <button
-      className="btn fixed-bottom-nav"
-      style={{
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100vw",
-        zIndex: 100,
-        borderRadius: 0,
-        boxShadow: "0 -2px 28px #57efb2b2",
-        background: "linear-gradient(90deg, #20e878 0%, #2ad493 100%)",
-        color: "#1a2b20",
-        fontSize: "1.18em",
-        fontWeight: 700,
-        padding: "1.2em 0",
-        border: "none",
-        textAlign: "center",
-        letterSpacing: "0.04em",
-        position: "fixed",
-      }}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
 
-function App() {
-  const [view, setView] = useState("menu");
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
 
-  // Show Leaderboard, pass player click handler
+  // Navigation handlers
+  const handlePlayerClick = (player) => {
+    setSelectedPlayer(player);
+    setView("playerStats");
+  };
+  const handleBackToLeaderboard = () => setView("leaderboard");
+  const handleBackToMenu = () => setView("menu");
+
+  // Routing logic
   if (view === "leaderboard") {
     return (
       <>
         <LeaderboardPage
-          onBackToMenu={() => setView("menu")}
-          onPlayerClick={(player) => {
-            setSelectedPlayer(player);
-            setView("playerStats");
-          }}
+          onPlayerClick={handlePlayerClick}
         />
-        <FixedBottomButton onClick={() => setView("menu")}>
+        <button
+          className="btn fixed-bottom-nav"
+          onClick={handleBackToMenu}
+        >
           Return to Main Menu
-        </FixedBottomButton>
+        </button>
       </>
     );
   }
-  if (view === "new1v1") {
-  return (
-    <>
-      <EnterNew1v1Page onBackToMenu={() => setView("menu")} />
-    </>
-  );
-}
 
-  // Show Player Stats page
   if (view === "playerStats" && selectedPlayer) {
     return (
       <>
         <PlayerStatsPage
           player={selectedPlayer}
-          onBackToLeaderboard={() => setView("leaderboard")}
-          onBackToMenu={() => setView("menu")}
+          onBackToLeaderboard={handleBackToLeaderboard}
+          onBackToMenu={handleBackToMenu}
         />
-        <FixedBottomButton onClick={() => setView("leaderboard")}>
+        <button
+          className="btn fixed-bottom-nav"
+          onClick={handleBackToLeaderboard}
+        >
           Return to Leaderboard
-        </FixedBottomButton>
+        </button>
       </>
     );
   }
-
-  // Placeholder for other pages
-  if (view !== "menu") {
+  if (view === "addPlayer") {
     return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center"
-        style={{ background: "var(--bg-gradient)", paddingBottom: 96 }}
-      >
-        <h2 style={{ color: "#fff", marginTop: 28, fontWeight: 600 }}>This page is coming soon!</h2>
-        <FixedBottomButton onClick={() => setView("menu")}>
-          Return to Main Menu
-        </FixedBottomButton>
-      </div>
+      <AddPlayerPage
+        onBackToMenu={() => setView("menu")}
+        onBackToLeaderboard={() => setView("leaderboard")}
+      />
     );
   }
+  if (view === "enter1v1") {
+  return (
+    <EnterNew1v1Page
+      onBackToMenu={() => setView("menu")}
+      onBackToLeaderboard={() => setView("leaderboard")}
+    />
+  );
+}
+if (view === "enterRace") {
+  return (
+    <EnterNewRacePage
+      onBackToMenu={() => setView("menu")}
+      onBackToLeaderboard={() => setView("leaderboard")}
+    />
+  );
+}
+if (view === "trainingLog") {
+  return <TrainingLogPage onBackToMenu={() => setView("menu")} />;
+}
+if (view === "viewTrainingData") {
+  return <ViewTrainingDataPage onBackToMenu={() => setView("menu")} />;
+}
 
-  // Main Menu
-  return <MainMenu onSelect={setView} />;
+if (view === "headToHead") {
+  return <HeadToHeadPage onBackToMenu={() => setView("menu")} />;
+}
+if (view === "matchHistory") {
+  return <MatchHistoryPage onBackToMenu={() => setView("menu")} />;
+}
+  // Default to main menu
+  return <MainMenu />;
 }
 
 export default App;
