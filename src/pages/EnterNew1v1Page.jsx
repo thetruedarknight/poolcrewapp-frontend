@@ -1,117 +1,52 @@
-import React, { useEffect, useState, useRef } from "react";
-
-const GAME_TYPES = ["8 ball", "9 ball", "10 ball"];
+import React, { useState, useEffect } from "react";
 
 export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
   const [players, setPlayers] = useState([]);
-  const [playerA, setPlayerA] = useState("");
-  const [playerB, setPlayerB] = useState("");
-  const [winner, setWinner] = useState("");
-  const [gameType, setGameType] = useState(GAME_TYPES[0]);
+  const [playerAId, setPlayerAId] = useState("");
+  const [playerBId, setPlayerBId] = useState("");
+  const [winnerId, setWinnerId] = useState("");
   const [runout, setRunout] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const sessionIdRef = useRef(generateSessionId());
-  const lastGameTypeRef = useRef(GAME_TYPES[0]);
 
-  // Fetch players on mount
   useEffect(() => {
-    fetch("/api/getPlayers")
-      .then((res) => res.json())
-      .then(setPlayers);
+    fetch("/api/getPlayers").then(r => r.json()).then(setPlayers);
   }, []);
 
-  function resetForm(winnerId = "") {
-    setPlayerA(winnerId || "");
-    setPlayerB("");
-    setWinner("");
-    setRunout(false);
-    setGameType(lastGameTypeRef.current);
-  }
-
-  function generateSessionId() {
-    return `S${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`;
-  }
-
-  // Player selection logic
-  const playerOptions = players.map((p) => ({
-    value: p.playerId,
-    label: p.nickname ? `${p.nickname} (${p.name})` : p.name,
-  }));
-  const filteredPlayerBOptions = playerOptions.filter((opt) => opt.value !== playerA);
-  const winnerOptions =
-    playerA && playerB
-      ? playerOptions.filter((opt) => opt.value === playerA || opt.value === playerB)
-      : [];
-
-  async function handleSubmit(type = "continue") {
-    setSubmitting(true);
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    if (!playerA || !playerB || !winner || playerA === playerB) {
-      setErrorMsg("Please select two different players and a winner.");
-      setSubmitting(false);
-      return;
-    }
-
-    const matchId = `M${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`;
-    const sessionId = sessionIdRef.current;
-    const dateStr = new Date().toISOString().split("T")[0];
-
-    try {
-      // 1. Add Match
-      const res = await fetch("/api/addMatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matchId,
-  sessionId,
-  date,
-  sessionType: "1v1",
-  gameType,
-  playerAId,
-  playerBId,
-  winnerId,
-  runout: winnerHadRunout ? "Y" : ""
-        }),
+  function handleSubmit(e) {
+    e.preventDefault();
+    // Simple ID gen:
+    const matchId = "M" + Date.now();
+    const sessionId = "S" + Math.floor(Date.now() / 100000);
+    const today = new Date();
+    today.setHours(today.getHours() - 4); // Trinidad time!
+    const date = today.toISOString().split("T")[0];
+    fetch("/api/matches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add",
+        matchId,
+        sessionId,
+        date,
+        sessionType: "1v1",
+        gameType: "8 ball", // or your dropdown value!
+        playerAId,
+        playerBId,
+        winnerId,
+        runout: runout ? "Y" : ""
+      })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          alert("Match logged!");
+          setPlayerAId("");
+          setPlayerBId("");
+          setWinnerId("");
+          setRunout(false);
+        } else {
+          alert("Failed: " + data.error);
+        }
       });
-      const result = await res.json();
-      if (!result.success) {
-        setErrorMsg(result.error || "Failed to add match.");
-        setSubmitting(false);
-        return;
-      }
-
-      // 2. Recalculate ELO (ignore error if 404 on localhost, will work on Vercel)
-      try {
-        await fetch("/api/recalculateElo", { method: "POST" });
-      } catch {}
-
-      // 3. Increment runout if checked
-      if (runout) {
-        await fetch("/api/incrementRunout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playerId: winner }),
-        });
-      }
-
-      setSuccessMsg("Match logged and ratings updated!");
-      lastGameTypeRef.current = gameType; // Remember this for the next form
-
-      if (type === "continue") {
-        resetForm(winner);
-      } else if (type === "end") {
-        sessionIdRef.current = generateSessionId();
-        onBackToMenu();
-      }
-    } catch (e) {
-      setErrorMsg("Network error.");
-    } finally {
-      setSubmitting(false);
-    }
   }
 
   return (

@@ -30,7 +30,7 @@ export default function MatchHistoryPage({ onBackToMenu }) {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetch("/api/getMatches").then(r => r.json()),
+      fetch("/api/matches?action=get").then(r => r.json()),
       fetch("/api/getPlayers").then(r => r.json())
     ]).then(([m, p]) => {
       setMatches(m || []);
@@ -69,50 +69,39 @@ export default function MatchHistoryPage({ onBackToMenu }) {
     });
   }
   async function handleSaveEdit(m) {
-    // POST to /api/editMatch with editData + matchId
-    try {
-      const body = { matchId: m.matchId, ...editData };
-      const resp = await fetch("/api/editMatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const res = await resp.json();
-      if (res.success) {
-        // After edit, reload matches and ELO
-        setEditMatchId(null);
-        setEditData({});
-        await fetch("/api/recalculateElo", { method: "POST" });
-        // reload matches:
-        const mm = await fetch("/api/getMatches").then(r => r.json());
-        setMatches(mm || []);
-      } else {
-        alert("Error: " + (res.error || "Unknown error"));
-      }
-    } catch (e) {
-      alert("Network error.");
+    const body = { action: "edit", matchId: m.matchId, ...editData };
+    const resp = await fetch("/api/matches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const res = await resp.json();
+    if (res.success) {
+      setEditMatchId(null);
+      setEditData({});
+      await fetch("/api/recalculateElo", { method: "POST" });
+      const mm = await fetch("/api/matches?action=get").then(r => r.json());
+      setMatches(mm || []);
+    } else {
+      alert("Error: " + (res.error || "Unknown error"));
     }
   }
   // Delete logic
   async function handleDelete(m) {
-    try {
-      const body = { matchId: m.matchId };
-      const resp = await fetch("/api/deleteMatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const res = await resp.json();
-      if (res.success) {
-        setShowConfirmDelete(null);
-        await fetch("/api/recalculateElo", { method: "POST" });
-        const mm = await fetch("/api/getMatches").then(r => r.json());
-        setMatches(mm || []);
-      } else {
-        alert("Error: " + (res.error || "Unknown error"));
-      }
-    } catch (e) {
-      alert("Network error.");
+    const body = { action: "delete", matchId: m.matchId };
+    const resp = await fetch("/api/matches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const res = await resp.json();
+    if (res.success) {
+      setShowConfirmDelete(null);
+      await fetch("/api/recalculateElo", { method: "POST" });
+      const mm = await fetch("/api/matches?action=get").then(r => r.json());
+      setMatches(mm || []);
+    } else {
+      alert("Error: " + (res.error || "Unknown error"));
     }
   }
 

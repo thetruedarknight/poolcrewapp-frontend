@@ -19,7 +19,7 @@ export default function PlayerStatsPage({ player, onBackToLeaderboard, onBackToM
       setLoading(true);
       const [playersRes, matchesRes, historyRes] = await Promise.all([
         fetch("/api/getPlayers").then(res => res.json()),
-        fetch("/api/getMatches").then(res => res.json()),
+        fetch("/api/matches?action=get").then(res => res.json()),
         fetch("/api/getRatingHistory").then(res => res.json())
       ]);
       setPlayers(playersRes);

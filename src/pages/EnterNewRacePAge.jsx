@@ -1,193 +1,60 @@
-import React, { useEffect, useState, useRef } from "react";
-
-const GAME_TYPES = ["8 ball", "9 ball", "10 ball"];
+import React, { useState, useEffect } from "react";
 
 export default function EnterNewRacePage({ onBackToMenu, onBackToLeaderboard }) {
   const [players, setPlayers] = useState([]);
-  const [playerA, setPlayerA] = useState("");
-  const [playerB, setPlayerB] = useState("");
+  const [playerAId, setPlayerAId] = useState("");
+  const [playerBId, setPlayerBId] = useState("");
+  const [winnerId, setWinnerId] = useState("");
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
-  const [runoutsA, setRunoutsA] = useState(0);
-  const [runoutsB, setRunoutsB] = useState(0);
-  const [winner, setWinner] = useState("");
-  const [gameType, setGameType] = useState(GAME_TYPES[0]);
-  const [submitting, setSubmitting] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const sessionIdRef = useRef(generateSessionId());
-  const lastGameTypeRef = useRef(GAME_TYPES[0]);
+  const [runoutA, setRunoutA] = useState(0);
+  const [runoutB, setRunoutB] = useState(0);
 
   useEffect(() => {
-    fetch("/api/getPlayers")
-      .then((res) => res.json())
-      .then(setPlayers);
+    fetch("/api/getPlayers").then(r => r.json()).then(setPlayers);
   }, []);
 
-  function resetForm(newWinner = "", newGameType = gameType) {
-    setPlayerA(newWinner || "");
-    setPlayerB("");
-    setScoreA("");
-    setScoreB("");
-    setRunoutsA(0);
-    setRunoutsB(0);
-    setWinner("");
-    setGameType(newGameType);
-  }
-
-  function generateSessionId() {
-    return `S${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`;
-  }
-
-  // Player dropdown logic
-  const playerOptions = players.map((p) => ({
-    value: p.playerId,
-    label: p.nickname ? `${p.nickname} (${p.name})` : p.name,
-  }));
-  const filteredPlayerBOptions = playerOptions.filter((opt) => opt.value !== playerA);
-
-  // Winner detection (auto if scores are entered)
-  useEffect(() => {
-    if (
-      playerA &&
-      playerB &&
-      scoreA !== "" &&
-      scoreB !== "" &&
-      Number(scoreA) !== Number(scoreB)
-    ) {
-      setWinner(Number(scoreA) > Number(scoreB) ? playerA : playerB);
-    } else {
-      setWinner("");
-    }
-  }, [playerA, playerB, scoreA, scoreB]);
-
-  async function handleSubmit(type = "continue") {
-    setSubmitting(true);
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    // Validation
-        if (!playerA || !playerB || playerA === playerB) {
-      setErrorMsg("Please select two different players.");
-      setSubmitting(false);
-      return;
-    }
-    if (!gameType) {
-      setErrorMsg("Please select a game type.");
-      setSubmitting(false);
-      return;
-    }
-    if (
-      scoreA === "" ||
-      scoreB === "" ||
-      isNaN(Number(scoreA)) ||
-      isNaN(Number(scoreB)) ||
-      Number(scoreA) < 0 ||
-      Number(scoreB) < 0
-    ) {
-      setErrorMsg("Enter valid scores for both players.");
-      setSubmitting(false);
-      return;
-    }
-    if (Number(scoreA) === Number(scoreB)) {
-      setErrorMsg("Scores cannot be tied in a race.");
-      setSubmitting(false);
-      return;
-    }
-    if (!winner) {
-      setErrorMsg("Cannot determine winner from scores.");
-      setSubmitting(false);
-      return;
-    }
-    if (
-      runoutsA === "" ||
-      runoutsB === "" ||
-      isNaN(Number(runoutsA)) ||
-      isNaN(Number(runoutsB)) ||
-      Number(runoutsA) < 0 ||
-      Number(runoutsB) < 0
-    ) {
-      setErrorMsg("Enter valid runout counts (0 or more) for both players.");
-      setSubmitting(false);
-      return;
-    }
-    if (Number(runoutsA) > Number(scoreA)) {
-      setErrorMsg("Player A cannot have more runouts than games won.");
-      setSubmitting(false);
-      return;
-    }
-    if (Number(runoutsB) > Number(scoreB)) {
-      setErrorMsg("Player B cannot have more runouts than games won.");
-      setSubmitting(false);
-      return;
-    }
-
-    const matchId = `M${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`;
-    const sessionId = sessionIdRef.current;
-    const dateStr = new Date().toISOString().split("T")[0];
-
-    try {
-      // 1. Add Match
-      const res = await fetch("/api/addMatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-           matchId,
-  sessionId,
-  date,
-  sessionType: "race",
-  gameType,
-  playerAId,
-  playerBId,
-  winnerId,
-  scoreA,
-  scoreB,
-  runoutA: Number(runoutsA), // from input
-  runoutB: Number(runoutsB)  // from input
-        }),
+  function handleSubmit(e) {
+    e.preventDefault();
+    const matchId = "M" + Date.now();
+    const sessionId = "S" + Math.floor(Date.now() / 100000);
+    const today = new Date();
+    today.setHours(today.getHours() - 4); // Trinidad
+    const date = today.toISOString().split("T")[0];
+    fetch("/api/matches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add",
+        matchId,
+        sessionId,
+        date,
+        sessionType: "race",
+        gameType: "9 ball", // or your dropdown value!
+        playerAId,
+        playerBId,
+        winnerId,
+        scoreA,
+        scoreB,
+        runoutA: Number(runoutA) || 0,
+        runoutB: Number(runoutB) || 0
+      })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          alert("Race logged!");
+          setPlayerAId("");
+          setPlayerBId("");
+          setWinnerId("");
+          setScoreA("");
+          setScoreB("");
+          setRunoutA(0);
+          setRunoutB(0);
+        } else {
+          alert("Failed: " + data.error);
+        }
       });
-      const result = await res.json();
-      if (!result.success) {
-        setErrorMsg(result.error || "Failed to add match.");
-        setSubmitting(false);
-        return;
-      }
-
-      // 2. Recalculate ELO
-      try {
-        await fetch("/api/recalculateElo", { method: "POST" });
-      } catch {}
-
-      // 3. Increment runouts for each player if needed
-      for (let i = 0; i < Number(runoutsA); i++) {
-        await fetch("/api/incrementRunout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playerId: playerA }),
-        });
-      }
-      for (let i = 0; i < Number(runoutsB); i++) {
-        await fetch("/api/incrementRunout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playerId: playerB }),
-        });
-      }
-
-      setSuccessMsg("Race logged and ratings updated!");
-      lastGameTypeRef.current = gameType;
-
-      if (type === "continue") {
-        resetForm(winner, gameType);
-      } else if (type === "end") {
-        sessionIdRef.current = generateSessionId();
-        onBackToMenu();
-      }
-    } catch (e) {
-      setErrorMsg("Network error.");
-    } finally {
-      setSubmitting(false);
-    }
   }
 
   return (

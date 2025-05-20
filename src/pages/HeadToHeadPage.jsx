@@ -76,7 +76,7 @@ export default function HeadToHeadPage({ onBackToMenu }) {
     setLoading(true);
     Promise.all([
       fetch("/api/getPlayers").then(r => r.json()),
-      fetch("/api/getMatches").then(r => r.json())
+      fetch("/api/matches?action=get").then(r => r.json())
     ]).then(([p, m]) => {
       setPlayers(p || []);
       setMatches(m || []);
