@@ -201,23 +201,45 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
                   </div>
                 </label>
               </div>
-              <div style={{ flex: 2, minWidth: 160 }}>
-                <label>Date Range<br />
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={e => setDateFrom(e.target.value)}
-                    style={{ marginRight: 4 }}
-                  />
-                  <span style={{ color: "#91dda1" }}>to</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={e => setDateTo(e.target.value)}
-                    style={{ marginLeft: 4 }}
-                  />
-                </label>
-              </div>
+              <div
+  style={{
+    flex: 2,
+    minWidth: 160,
+    display: "flex",
+    flexDirection: window.innerWidth < 600 ? "column" : "row",
+    alignItems: window.innerWidth < 600 ? "flex-start" : "center",
+    gap: 6
+  }}
+>
+  <label style={{ width: "100%" }}>
+    Date Range
+    <div style={{
+      display: "flex",
+      flexDirection: window.innerWidth < 600 ? "column" : "row",
+      gap: window.innerWidth < 600 ? 6 : 4,
+      marginTop: 2
+    }}>
+      <input
+        type="date"
+        value={dateFrom}
+        onChange={e => setDateFrom(e.target.value)}
+        style={{ width: "100%", minWidth: 0 }}
+      />
+      <span style={{
+        color: "#91dda1",
+        alignSelf: window.innerWidth < 600 ? "center" : "unset",
+        margin: window.innerWidth < 600 ? "2px 0" : "0 4px"
+      }}>to</span>
+      <input
+        type="date"
+        value={dateTo}
+        onChange={e => setDateTo(e.target.value)}
+        style={{ width: "100%", minWidth: 0 }}
+      />
+    </div>
+  </label>
+</div>
+
             </div>
             {!selectedDrill && (
               <div style={{ color: "#ffefb5", textAlign: "center", margin: 12 }}>Please select a drill to view data.</div>
@@ -252,8 +274,16 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
                   </ResponsiveContainer>
                 </div>
                 <div style={{
-                  display: "flex", flexWrap: "wrap", gap: 18, marginTop: 10, justifyContent: "center"
-                }}>
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 18,
+  marginTop: 10,
+  justifyContent: "center",
+  width: "100%",
+  maxWidth: 400, // Optional: set a max width so it doesn't stretch across the whole page
+  marginLeft: "auto",
+  marginRight: "auto"
+}}>
                   {playerOptions.map((p, idx) => (
                     <div key={p.value} style={{
                       minWidth: 160, background: "#1c292a", borderRadius: 14, padding: "13px 15px",

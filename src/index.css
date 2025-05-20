@@ -167,3 +167,17 @@ select, option {
     padding: 1em 0.3em;
   }
 }
+
+input[type="date"] {
+  background: #1F2830;
+  color: #e7ffe0;
+  border: 1.5px solid #39ecb5;
+  border-radius: 15px;
+  font-size: 1.1em;
+  padding: 0.7em 1em;
+  margin-bottom: 0.25em;
+}
+input[type="date"]:focus {
+  border-color: #78FFA3;
+  box-shadow: 0 0 0 2px #57efb288;
+}

@@ -44,8 +44,8 @@ export default function EnterNewRacePage({ onBackToMenu, onBackToLeaderboard }) 
     setPlayerBId("");
     setScoreA("");
     setScoreB("");
-    setRunoutA(0);
-    setRunoutB(0);
+    setRunoutA("");
+    setRunoutB("");
     setGameType(GAME_TYPES[0]);
   }
 

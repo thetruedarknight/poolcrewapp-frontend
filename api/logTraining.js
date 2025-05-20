@@ -1,5 +1,21 @@
 import { google } from "googleapis";
 
+function getTrinidadDate() {
+  const now = new Date();
+  const localeOptions = {
+    timeZone: 'America/Port_of_Spain',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour12: false
+  };
+  // "20/05/2025"
+  const dateStr = now.toLocaleDateString('en-GB', localeOptions);
+  // Format date to "YYYY-MM-DD"
+  const [day, month, year] = dateStr.split('/');
+  return `${year}-${month}-${day}`;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -19,15 +35,7 @@ export default async function handler(req, res) {
     ]);
     const sheets = google.sheets({ version: "v4", auth: jwt });
 
-    // Trinidad is GMT-4
-function getTrinidadDate() {
-  const now = new Date();
-  // get UTC time, subtract 4 hours (Trinidad time zone)
-  now.setHours(now.getHours() - 4);
-  return now.toISOString().split("T")[0];
-}
-const today = date || getTrinidadDate();
-
+    const today = date || getTrinidadDate();
 
     let rows = [];
     logs.forEach(({ playerId, scores, note }) => {

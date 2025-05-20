@@ -1,5 +1,25 @@
 import { google } from "googleapis";
 
+function getTrinidadDateTime() {
+  const now = new Date();
+  const localeOptions = {
+    timeZone: 'America/Port_of_Spain',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  };
+  const trinidadDateTime = now.toLocaleString('en-GB', localeOptions); // "20/05/2025, 13:26:55"
+  const [dateStr, timeStr] = trinidadDateTime.split(',').map(s => s.trim());
+  const [day, month, year] = dateStr.split('/');
+  const isoDate = `${year}-${month}-${day}`; // "2025-05-20"
+  const isoTime = timeStr; // "13:26:55"
+  return { isoDate, isoTime };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST")
     return res.status(405).json({ error: "Method not allowed" });
@@ -96,7 +116,6 @@ export default async function handler(req, res) {
     players.forEach(row => {
       const playerId = row[playerIdIndex];
       row[ratingColIndex] = eloByPlayer[playerId] || INITIAL_ELO;
-      // Do NOT touch the runouts column (let your formula handle it)
     });
     const outputRows = players.map(row => row.slice(0, 7));
     await sheets.spreadsheets.values.update({
@@ -104,6 +123,22 @@ export default async function handler(req, res) {
       range: `Players!A2:G`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: outputRows },
+    });
+
+    // 8. Append current ratings to RatingHistory tab (with Trinidad local time)
+    const { isoDate, isoTime } = getTrinidadDateTime();
+    const historyRows = players.map(row => [
+      isoDate,                   // Date
+      isoTime,                   // Time
+      row[playerIdIndex],        // playerId
+      row[header.indexOf("nickname")] || row[header.indexOf("name")], // Nickname/Name
+      row[ratingColIndex],       // Current Rating (after recalc)
+    ]);
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: "RatingHistory!A1",
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: historyRows },
     });
 
     res.status(200).json({ success: true });

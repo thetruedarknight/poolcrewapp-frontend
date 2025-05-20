@@ -1,5 +1,21 @@
 import { google } from "googleapis";
 
+function getTrinidadDate() {
+  const now = new Date();
+  const localeOptions = {
+    timeZone: 'America/Port_of_Spain',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour12: false
+  };
+  // "20/05/2025"
+  const dateStr = now.toLocaleDateString('en-GB', localeOptions);
+  // Format date to "YYYY-MM-DD"
+  const [day, month, year] = dateStr.split('/');
+  return `${year}-${month}-${day}`;
+}
+
 export default async function handler(req, res) {
   const {
     action // "get" | "add" | "edit" | "delete"
@@ -53,18 +69,19 @@ export default async function handler(req, res) {
         matchId, sessionId, date, sessionType, gameType,
         playerAId, playerBId, winnerId, scoreA, scoreB, runout, runoutA, runoutB
       } = req.body;
-      if (!matchId || !sessionId || !date || !sessionType || !gameType || !playerAId || !playerBId || !winnerId) {
+      if (!matchId || !sessionId || !sessionType || !gameType || !playerAId || !playerBId || !winnerId) {
         return res.status(400).json({ error: "Missing required fields." });
       }
+      const trinidadDate = date || getTrinidadDate();
       let row;
       if (sessionType === "1v1") {
         row = [
-          matchId, sessionId, date, sessionType, gameType,
+          matchId, sessionId, trinidadDate, sessionType, gameType,
           playerAId, playerBId, winnerId, "", "", runout === "Y" ? "Y" : "", "", ""
         ];
       } else if (sessionType === "race") {
         row = [
-          matchId, sessionId, date, sessionType, gameType,
+          matchId, sessionId, trinidadDate, sessionType, gameType,
           playerAId, playerBId, winnerId, scoreA ?? "", scoreB ?? "",
           "", runoutA > 0 ? String(runoutA) : "", runoutB > 0 ? String(runoutB) : ""
         ];
@@ -81,7 +98,7 @@ export default async function handler(req, res) {
     }
 
     // ------------------
-    // EDIT MATCH
+    // EDIT MATCH (no date change here)
     // ------------------
     if (req.method === "POST" && action === "edit") {
       const {

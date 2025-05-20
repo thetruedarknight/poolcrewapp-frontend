@@ -1,65 +1,35 @@
 import React, { useEffect, useState } from "react";
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 // Helper
-const COLORS = [
-  "#F94144", "#277DA1", "#F3722C", "#4ECDC4", "#F9C74F",
-  "#43AA8B", "#577590", "#FF7F51", "#90BE6D", "#D7263D"
-];
-
-function getPlayerColor(players, playerId) {
-  const idx = players.findIndex(p => p.playerId === playerId);
-  return COLORS[idx % COLORS.length];
-}
-
 function getPlayerDisplayName(player) {
   return player?.nickname ? player.nickname : player?.name || "";
 }
-
 function getAvatar(player) {
   return player?.avatarUrl
-    ? <img src={player.avatarUrl} alt={getPlayerDisplayName(player)} style={{ width: 58, height: 58, borderRadius: "50%", objectFit: "cover", border: "3px solid #202" }} />
+    ? <img src={player.avatarUrl} alt={getPlayerDisplayName(player)} style={{
+        width: 58, height: 58, borderRadius: "50%", objectFit: "cover",
+        border: `3px solid ${player?.color || "#222"}`,
+        background: "#222"
+      }} />
     : (
       <div style={{
         width: 58, height: 58, borderRadius: "50%",
         background: player?.color || "#282828", color: "#fff",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontWeight: 800, fontSize: "1.55em", border: "3px solid #202"
+        fontWeight: 800, fontSize: "1.55em", border: `3px solid #222`
       }}>
         {getPlayerDisplayName(player).substring(0, 1)}
       </div>
     );
 }
-
-// Donut chart data helper
 function getDonutData(stats, playerA, playerB) {
   return [
-    { name: getPlayerDisplayName(playerA), value: stats?.[playerA.playerId]?.wins || 0 },
-    { name: getPlayerDisplayName(playerB), value: stats?.[playerB.playerId]?.wins || 0 }
+    { name: getPlayerDisplayName(playerA), value: stats?.[playerA?.playerId]?.wins || 0 },
+    { name: getPlayerDisplayName(playerB), value: stats?.[playerB?.playerId]?.wins || 0 }
   ];
 }
 
-// Streak logic
-function getCurrentStreak(matches, playerAId, playerBId) {
-  let streak = 0;
-  let lastWinner = null;
-  for (let match of matches) {
-    if (match.winnerId === playerAId) {
-      if (lastWinner === playerAId || lastWinner === null) streak++;
-      else streak = 1;
-      lastWinner = playerAId;
-    } else if (match.winnerId === playerBId) {
-      if (lastWinner === playerBId || lastWinner === null) streak++;
-      else streak = 1;
-      lastWinner = playerBId;
-    }
-  }
-  if (lastWinner === playerAId) return { player: "A", count: streak };
-  if (lastWinner === playerBId) return { player: "B", count: streak };
-  return { player: null, count: 0 };
-}
-
-// Main
 export default function HeadToHeadPage({ onBackToMenu }) {
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
@@ -112,7 +82,6 @@ export default function HeadToHeadPage({ onBackToMenu }) {
       if (m.winnerId === playerBId) statsObj[playerBId].wins++;
       // Add racks/games
       if (m.sessionType === "race") {
-        // Racks from score fields
         const aScore = Number(m.scoreA || 0);
         const bScore = Number(m.scoreB || 0);
         if (m.playerAId === playerAId) {
@@ -128,10 +97,8 @@ export default function HeadToHeadPage({ onBackToMenu }) {
         }
       }
       if (m.sessionType === "1v1") {
-        // Win is a rack
         if (m.winnerId === playerAId) statsObj[playerAId].racks++;
         if (m.winnerId === playerBId) statsObj[playerBId].racks++;
-        // Runout for winner
         if (m.runout === "Y") {
           if (m.winnerId === playerAId) statsObj[playerAId].runouts++;
           if (m.winnerId === playerBId) statsObj[playerBId].runouts++;
@@ -142,10 +109,8 @@ export default function HeadToHeadPage({ onBackToMenu }) {
     setStats(statsObj);
 
     // Streak calc
-    // We'll process in chronological order (oldest to newest)
     const ordered = [...vsMatches].reverse();
-    let curr = null;
-    let streakCt = 0;
+    let curr = null, streakCt = 0;
     for (let m of ordered) {
       if (!m.winnerId) continue;
       if (curr === null) { curr = m.winnerId; streakCt = 1; }
@@ -163,6 +128,12 @@ export default function HeadToHeadPage({ onBackToMenu }) {
   const playerB = players.find(p => p.playerId === playerBId);
   const total = (stats?.[playerAId]?.wins || 0) + (stats?.[playerBId]?.wins || 0);
 
+  // Chart color mapping (player color or fallback)
+  const donutColors = [
+    playerA?.color || "#39ecb5",
+    playerB?.color || "#f3722c"
+  ];
+
   // --- UI ---
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
@@ -172,7 +143,9 @@ export default function HeadToHeadPage({ onBackToMenu }) {
           <div style={{ textAlign: "center", color: "#aaffc6", padding: 24 }}>Loading data...</div>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 24 }}>
+            <div style={{
+              display: "flex", gap: 14, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 24
+            }}>
               <div style={{ flex: 2, minWidth: 160 }}>
                 <label>Player A<br />
                   <select
@@ -189,9 +162,10 @@ export default function HeadToHeadPage({ onBackToMenu }) {
                   </select>
                 </label>
               </div>
-              <div style={{ flex: 1, textAlign: "center", fontWeight: 700, fontSize: "1.25em", padding: "0 6px" }}>
-                VS
-              </div>
+              <div style={{
+                flex: 1, textAlign: "center", fontWeight: 700,
+                fontSize: "1.25em", padding: "0 6px"
+              }}>VS</div>
               <div style={{ flex: 2, minWidth: 160 }}>
                 <label>Player B<br />
                   <select
@@ -211,58 +185,69 @@ export default function HeadToHeadPage({ onBackToMenu }) {
             </div>
             {playerAId && playerBId && playerAId !== playerBId && (
               <>
-                {/* Avatars and Donut chart */}
+                {/* Avatars and Donut chart - NEW LAYOUT */}
                 <div style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  marginBottom: 18, gap: 22, flexWrap: "wrap"
+                  gap: 0, marginBottom: 6, width: "100%", textAlign: "center"
                 }}>
-                  <div style={{ textAlign: "center", flex: 1, minWidth: 110 }}>
+                  <div style={{
+                    flex: 1, minWidth: 90, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center"
+                  }}>
                     {getAvatar(playerA)}
-                    <div style={{ marginTop: 5, color: playerA?.color || "#fff", fontWeight: 700 }}>
+                    <div style={{ marginTop: 6, color: playerA?.color || "#fff", fontWeight: 700 }}>
                       {getPlayerDisplayName(playerA)}
                     </div>
                   </div>
-                  <div style={{ flex: 2, minWidth: 180 }}>
-                    <ResponsiveContainer width={180} height={120}>
-                      <PieChart>
-                        <Pie
-                          data={getDonutData(stats, playerA, playerB)}
-                          dataKey="value"
-                          cx="50%"
-                          cy="60%"
-                          innerRadius={30}
-                          outerRadius={54}
-                          fill="#8884d8"
-                          startAngle={90}
-                          endAngle={-270}
-                          label={({ name, value }) =>
-                            total ? `${Math.round((value / total) * 100)}%` : "0%"
-                          }
-                        >
-                          <Cell fill={playerA?.color || "#39ecb5"} />
-                          <Cell fill={playerB?.color || "#f3722c"} />
-                        </Pie>
-                        <Tooltip formatter={(v, n) => [`${v} win${v === 1 ? "" : "s"}`, n]} />
-                        <Legend
-                          payload={[
-                            {
-                              value: getPlayerDisplayName(playerA),
-                              type: "circle",
-                              color: playerA?.color || "#39ecb5",
-                            },
-                            {
-                              value: getPlayerDisplayName(playerB),
-                              type: "circle",
-                              color: playerB?.color || "#f3722c",
-                            },
-                          ]}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                  <div style={{
+                    flex: 2, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center"
+                  }}>
+                    <div style={{
+                      width: 160, height: 140, display: "flex", alignItems: "center", justifyContent: "center"
+                    }}>
+                      <ResponsiveContainer width={160} height={120}>
+                        <PieChart>
+                          <Pie
+                            data={getDonutData(stats, playerA, playerB)}
+                            dataKey="value"
+                            cx="50%"
+                            cy="55%"
+                            innerRadius={32}
+                            outerRadius={54}
+                            startAngle={90}
+                            endAngle={-270}
+                            label={({ value }) =>
+                              total ? `${Math.round((value / total) * 100)}%` : "0%"
+                            }
+                            labelLine={false}
+                          >
+                            {getDonutData(stats, playerA, playerB).map((entry, i) =>
+                              <Cell key={i} fill={donutColors[i]} />
+                            )}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-row items-center justify-center gap-5" style={{ marginTop: 0 }}>
+                      {[playerA, playerB].map((p, i) => (
+                        <span key={p?.playerId} style={{
+                          display: "inline-flex", alignItems: "center", fontWeight: 600,
+                          color: p?.color || (i === 0 ? "#39ecb5" : "#f3722c"), margin: "0 6px"
+                        }}>
+                          <span style={{
+                            display: "inline-block", width: 13, height: 13, borderRadius: "50%",
+                            background: p?.color || (i === 0 ? "#39ecb5" : "#f3722c"),
+                            marginRight: 6, border: "2px solid #223629"
+                          }}></span>
+                          {getPlayerDisplayName(p)}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ textAlign: "center", flex: 1, minWidth: 110 }}>
+                  <div style={{
+                    flex: 1, minWidth: 90, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center"
+                  }}>
                     {getAvatar(playerB)}
-                    <div style={{ marginTop: 5, color: playerB?.color || "#fff", fontWeight: 700 }}>
+                    <div style={{ marginTop: 6, color: playerB?.color || "#fff", fontWeight: 700 }}>
                       {getPlayerDisplayName(playerB)}
                     </div>
                   </div>
@@ -273,16 +258,16 @@ export default function HeadToHeadPage({ onBackToMenu }) {
                   marginBottom: 16
                 }}>
                   {[playerA, playerB].map((p, idx) => (
-                    <div key={p.playerId} style={{
+                    <div key={p?.playerId || idx} style={{
                       minWidth: 170, background: "#1c292a", borderRadius: 14, padding: "10px 14px",
-                      color: p.color || "#d6ffd9"
+                      color: p?.color || "#d6ffd9", marginBottom: 6
                     }}>
                       <div style={{ fontWeight: 700, fontSize: "1.08em", color: "#d6ffd9", marginBottom: 6 }}>
                         {getPlayerDisplayName(p)}
                       </div>
-                      <div><b>Wins:</b> {stats[p.playerId]?.wins || 0} / {total} ({total ? Math.round((stats[p.playerId]?.wins || 0) / total * 100) : 0}%)</div>
-                      <div><b>Total racks:</b> {stats[p.playerId]?.racks || 0}</div>
-                      <div><b>Runouts:</b> {stats[p.playerId]?.runouts || 0}</div>
+                      <div><b>Wins:</b> {stats[p?.playerId]?.wins || 0} / {total} ({total ? Math.round((stats[p?.playerId]?.wins || 0) / total * 100) : 0}%)</div>
+                      <div><b>Total racks:</b> {stats[p?.playerId]?.racks || 0}</div>
+                      <div><b>Runouts:</b> {stats[p?.playerId]?.runouts || 0}</div>
                       <div>
                         <b>Current streak:</b>{" "}
                         {streak.who === (idx === 0 ? "A" : "B") && streak.count > 1
@@ -314,13 +299,10 @@ export default function HeadToHeadPage({ onBackToMenu }) {
                     </thead>
                     <tbody>
                       {filtered.map((m, i) => {
-                        // Winner (with star if runout for 1v1)
                         let winnerName = getPlayerDisplayName(players.find(p => p.playerId === m.winnerId));
                         if (m.sessionType === "1v1" && m.runout === "Y") winnerName += " ⭐️";
-                        // Score (with brackets if runouts for race)
                         let scoreStr = "-";
                         if (m.sessionType === "race") {
-                          // Show runouts if > 0
                           let aScore = m.playerAId === playerAId ? m.scoreA : m.scoreB;
                           let bScore = m.playerBId === playerBId ? m.scoreB : m.scoreA;
                           let aRun = m.playerAId === playerAId ? m.runoutA : m.runoutB;
