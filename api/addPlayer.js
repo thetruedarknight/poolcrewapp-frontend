@@ -33,13 +33,12 @@ export default async function handler(req, res) {
       color || "#78FFA3",
       startingRating || "1200",
       startingRating || "1200", // Also set current rating initially
-      0 // Runouts
-    ];
+     ];
 
     // Append to the Players sheet
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: 'Players',
+      range: 'Players!A2:G',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [row]

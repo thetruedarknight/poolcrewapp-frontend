@@ -1,157 +1,114 @@
-import { google } from 'googleapis';
-
-const K_FACTOR = 32; // change as needed
+import { google } from "googleapis";
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST')
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "POST")
+    return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    // Auth
+    // 1. Auth
     const client_email = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
-    const private_key = process.env.GOOGLE_SHEETS_PRIVATE_KEY.replace(/\\n/g, '\n');
+    const private_key = process.env.GOOGLE_SHEETS_PRIVATE_KEY.replace(/\\n/g, "\n");
     const sheetId = process.env.GOOGLE_SHEETS_SHEET_ID;
     const jwt = new google.auth.JWT(
       client_email,
       null,
       private_key,
-      ['https://www.googleapis.com/auth/spreadsheets']
+      ["https://www.googleapis.com/auth/spreadsheets"]
     );
-    const sheets = google.sheets({ version: 'v4', auth: jwt });
+    const sheets = google.sheets({ version: "v4", auth: jwt });
 
-    // Load Players
-    const playersRange = 'Players!A1:H';
+    // 2. Load all players
     const playersResp = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId, range: playersRange
+      spreadsheetId: sheetId,
+      range: "Players!A1:Z"
     });
-    const playersRows = playersResp.data.values;
-    const [playersHeader, ...playersData] = playersRows;
-    const playersById = {};
-    playersData.forEach(row => {
-      const player = {};
-      playersHeader.forEach((h, i) => (player[h] = row[i]));
-      player.startingRating = parseInt(player.startingRating, 10) || 1200;
-      player["Current Rating"] = player.startingRating;
-      playersById[player.playerId] = player;
-    });
+    const playerRows = playersResp.data.values;
+    const header = playerRows[0];
+    const players = playerRows.slice(1);
 
-    // Load Matches, ordered by date then matchId (stable)
-    const matchesRange = 'Matches!A1:J';
+    // 3. Load all matches
     const matchesResp = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId, range: matchesRange
+      spreadsheetId: sheetId,
+      range: "Matches!A1:Z"
     });
-    const matchesRows = matchesResp.data.values;
-    const [matchesHeader, ...matchesData] = matchesRows;
-    const matches = matchesData.map(row => {
-      const m = {};
-      matchesHeader.forEach((h, i) => (m[h] = row[i]));
-      return m;
-    }).sort((a, b) => {
-      const da = new Date(a.date), db = new Date(b.date);
-      return da - db || (a.matchId || '').localeCompare(b.matchId || '');
+    const matchHeader = matchesResp.data.values[0];
+    const matchRows = matchesResp.data.values.slice(1);
+
+    // 4. Column indices
+    const playerIdIndex = header.indexOf("playerId");
+    const ratingColIndex = header.indexOf("Current Rating"); // Adjust if different
+
+    if (playerIdIndex === -1) throw new Error("playerId column not found in Players sheet header");
+    if (ratingColIndex === -1) throw new Error("Current Rating column not found in Players sheet header");
+
+    // Match indices
+    const mPlayerAIdx = matchHeader.indexOf("playerAId");
+    const mPlayerBIdx = matchHeader.indexOf("playerBId");
+    const mWinnerIdx = matchHeader.indexOf("winnerId");
+    const mSessionTypeIdx = matchHeader.indexOf("sessionType");
+    const mScoreAIdx = matchHeader.indexOf("scoreA");
+    const mScoreBIdx = matchHeader.indexOf("scoreB");
+
+    // 5. Prepare matches
+    const matches = matchRows
+      .filter(row => row[mSessionTypeIdx])
+      .map(row => ({
+        sessionType: row[mSessionTypeIdx],
+        playerAId: row[mPlayerAIdx],
+        playerBId: row[mPlayerBIdx],
+        winnerId: row[mWinnerIdx],
+        scoreA: row[mScoreAIdx],
+        scoreB: row[mScoreBIdx],
+      }));
+
+    // 6. ELO Calculation (basic, as before)
+    const INITIAL_ELO = 1200;
+    const K = 32;
+    const eloByPlayer = {};
+    players.forEach(row => {
+      const pid = row[playerIdIndex];
+      eloByPlayer[pid] = INITIAL_ELO;
     });
 
-    // Prepare RatingHistory: { [playerId]: [ {date, rating} ] }
-    const ratingHistory = {};
-    Object.values(playersById).forEach(p => {
-      ratingHistory[p.playerId] = [{
-        date: "", // Will skip blank date in final output
-        rating: p.startingRating
-      }];
-    });
+    matches.forEach(match => {
+      const { sessionType, playerAId, playerBId, winnerId, scoreA, scoreB } = match;
+      if (!playerAId || !playerBId || !winnerId) return;
 
-    // Process each match
-    for (const match of matches) {
-      // Only process 1v1 or race
-      if (!match.playerAId || !match.playerBId || !match.winnerId) continue;
-      const A = playersById[match.playerAId];
-      const B = playersById[match.playerBId];
-      if (!A || !B) continue;
-
-      let winsForWinner = 1;
-      if (match.sessionType && match.sessionType.toLowerCase().includes("race")) {
-        // Use the absolute score difference (ex: 7-4 => 3)
-        const scoreA = parseInt(match.scoreA, 10) || 0;
-        const scoreB = parseInt(match.scoreB, 10) || 0;
-        winsForWinner = Math.abs(scoreA - scoreB);
-        if (winsForWinner < 1) winsForWinner = 1;
+      let numGames = 1;
+      if (sessionType === "race") {
+        const a = Number(scoreA || 0), b = Number(scoreB || 0);
+        numGames = Math.abs(a - b);
+        if (numGames < 1) numGames = 1;
       }
 
-      const winner = match.winnerId === A.playerId ? A : B;
-      const loser = match.winnerId === A.playerId ? B : A;
+      let loserId = (winnerId === playerAId) ? playerBId : playerAId;
 
-      for (let i = 0; i < winsForWinner; ++i) {
-        // Calculate expected scores
-        const expectedWin = 1 / (1 + Math.pow(10, (loser["Current Rating"] - winner["Current Rating"]) / 400));
-        const expectedLose = 1 / (1 + Math.pow(10, (winner["Current Rating"] - loser["Current Rating"]) / 400));
-        // Update ratings
-        winner["Current Rating"] = Math.round(winner["Current Rating"] + K_FACTOR * (1 - expectedWin));
-        loser["Current Rating"] = Math.round(loser["Current Rating"] + K_FACTOR * (0 - expectedLose));
-        // Push history for this match
-        ratingHistory[winner.playerId].push({
-          date: match.date,
-          rating: winner["Current Rating"]
-        });
-        ratingHistory[loser.playerId].push({
-          date: match.date,
-          rating: loser["Current Rating"]
-        });
+      for (let i = 0; i < numGames; ++i) {
+        const Ra = eloByPlayer[winnerId] || INITIAL_ELO;
+        const Rb = eloByPlayer[loserId] || INITIAL_ELO;
+        const Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400));
+        eloByPlayer[winnerId] = Math.round(Ra + K * (1 - Ea));
+        eloByPlayer[loserId] = Math.round(Rb + K * (0 - (1 - Ea)));
       }
-    }
+    });
 
-    // Update Players sheet with new Current Ratings
-    // We'll overwrite the "Current Rating" column for each player (index 6)
-    for (let i = 0; i < playersData.length; ++i) {
-      const playerId = playersData[i][0];
-      if (playersById[playerId]) {
-        playersData[i][6] = String(playersById[playerId]["Current Rating"]);
-      }
-    }
-    // Write back to Players sheet (keep header)
+    // 7. Only update the Current Rating in the Players sheet (leave Runouts alone!)
+    players.forEach(row => {
+      const playerId = row[playerIdIndex];
+      row[ratingColIndex] = eloByPlayer[playerId] || INITIAL_ELO;
+      // Do NOT touch the runouts column (let your formula handle it)
+    });
+    const outputRows = players.map(row => row.slice(0, 7));
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `Players!A2:H${playersData.length + 1}`,
+      range: `Players!A2:G`,
       valueInputOption: "USER_ENTERED",
-      requestBody: { values: playersData }
+      requestBody: { values: outputRows },
     });
 
-    // Rewrite RatingHistory tab
-    // Format: date, playerId, rating (one row per entry, no blank date rows)
-    const ratingHistoryRows = [];
-    Object.entries(ratingHistory).forEach(([playerId, entries]) => {
-      entries.forEach(e => {
-        if (e.date) {
-          ratingHistoryRows.push([e.date, playerId, e.rating]);
-        }
-      });
-    });
-    // Sort by date then playerId
-    ratingHistoryRows.sort((a, b) => new Date(a[0]) - new Date(b[0]) || (a[1] || '').localeCompare(b[1] || ''));
-
-    // Clear and write the full history
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: sheetId,
-      range: 'RatingHistory!A2:C'
-    });
-    if (ratingHistoryRows.length > 0) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: sheetId,
-        range: 'RatingHistory!A2',
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: ratingHistoryRows }
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      playerRatings: Object.values(playersById).map(p => ({
-        playerId: p.playerId,
-        name: p.name,
-        rating: p["Current Rating"]
-      })),
-      numMatches: matches.length
-    });
+    res.status(200).json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Recalculate ELO Error:", err);
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 }

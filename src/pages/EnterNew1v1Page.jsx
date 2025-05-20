@@ -1,25 +1,76 @@
 import React, { useState, useEffect } from "react";
 
+const GAME_TYPES = ["8 ball", "9 ball", "10 ball"];
+
 export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
   const [players, setPlayers] = useState([]);
   const [playerAId, setPlayerAId] = useState("");
   const [playerBId, setPlayerBId] = useState("");
   const [winnerId, setWinnerId] = useState("");
+  const [gameType, setGameType] = useState(GAME_TYPES[0]);
   const [runout, setRunout] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     fetch("/api/getPlayers").then(r => r.json()).then(setPlayers);
   }, []);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    // Simple ID gen:
+  // Winner options: Only Player A or Player B, once both are chosen
+  const winnerOptions = [playerAId, playerBId]
+    .filter(Boolean)
+    .map(pid => {
+      const player = players.find(p => p.playerId === pid);
+      return player ? { value: player.playerId, label: player.nickname || player.name } : null;
+    })
+    .filter(Boolean);
+
+  // For dropdown options: filter to prevent duplicate selection
+  const playerAOptions = players
+    .filter(p => p.playerId !== playerBId)
+    .map(p => ({
+      value: p.playerId,
+      label: p.nickname || p.name,
+    }));
+
+  const playerBOptions = players
+    .filter(p => p.playerId !== playerAId)
+    .map(p => ({
+      value: p.playerId,
+      label: p.nickname || p.name,
+    }));
+
+  // Clear winner if either A or B is changed
+  useEffect(() => {
+    if (![playerAId, playerBId].includes(winnerId)) setWinnerId("");
+  }, [playerAId, playerBId]);
+
+  function resetForm() {
+    setPlayerAId("");
+    setPlayerBId("");
+    setWinnerId("");
+    setRunout(false);
+    setGameType(GAME_TYPES[0]);
+  }
+
+  async function handleSubmit(mode = "continue") {
+    setErrorMsg("");
+    setSuccessMsg("");
+    if (!playerAId || !playerBId || !winnerId) {
+      setErrorMsg("Please select both players and a winner.");
+      return;
+    }
+    setSubmitting(true);
+
     const matchId = "M" + Date.now();
     const sessionId = "S" + Math.floor(Date.now() / 100000);
     const today = new Date();
-    today.setHours(today.getHours() - 4); // Trinidad time!
+    today.setHours(today.getHours() - 4); // Trinidad UTC-4
     const date = today.toISOString().split("T")[0];
-    fetch("/api/matches", {
+
+    // 1. Add the match
+    const addRes = await fetch("/api/matches", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -28,25 +79,38 @@ export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
         sessionId,
         date,
         sessionType: "1v1",
-        gameType: "8 ball", // or your dropdown value!
+        gameType,
         playerAId,
         playerBId,
         winnerId,
-        runout: runout ? "Y" : ""
+        runout: runout ? "Y" : "",
       })
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          alert("Match logged!");
-          setPlayerAId("");
-          setPlayerBId("");
-          setWinnerId("");
-          setRunout(false);
-        } else {
-          alert("Failed: " + data.error);
-        }
-      });
+    }).then(r => r.json());
+
+
+    // 3. Always recalc ELO
+    if (addRes.success) {
+      await fetch("/api/recalculateElo", { method: "POST" });
+    }
+
+    setSubmitting(false);
+
+    if (addRes.success) {
+      setSuccessMsg("Match logged!");
+      setErrorMsg("");
+      if (mode === "continue") {
+        setPlayerAId(winnerId);
+        setPlayerBId("");
+        setWinnerId("");
+        setRunout(false);
+      } else {
+        resetForm();
+        onBackToMenu();
+      }
+    } else {
+      setErrorMsg("Failed: " + (addRes.error || "Unknown error"));
+      setSuccessMsg("");
+    }
   }
 
   return (
@@ -54,7 +118,7 @@ export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
       <div className="page-container" style={{ width: "100%", maxWidth: 410, marginTop: 36, marginBottom: 36 }}>
         <h1 style={{ color: "var(--accent)", textAlign: "center", marginBottom: 16 }}>Enter New 1v1 Match</h1>
         <form
-          onSubmit={(e) => {
+          onSubmit={e => {
             e.preventDefault();
             handleSubmit("continue");
           }}
@@ -63,18 +127,13 @@ export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
             Player A
             <select
               required
-              value={playerA}
-              onChange={(e) => {
-                setPlayerA(e.target.value);
-                if (![e.target.value, playerB].includes(winner)) setWinner("");
-              }}
+              value={playerAId}
+              onChange={e => setPlayerAId(e.target.value)}
               style={{ width: "100%" }}
             >
               <option value="">Select Player A</option>
-              {playerOptions.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
+              {playerAOptions.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
           </label>
@@ -82,18 +141,13 @@ export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
             Player B
             <select
               required
-              value={playerB}
-              onChange={(e) => {
-                setPlayerB(e.target.value);
-                if (![playerA, e.target.value].includes(winner)) setWinner("");
-              }}
+              value={playerBId}
+              onChange={e => setPlayerBId(e.target.value)}
               style={{ width: "100%" }}
             >
               <option value="">Select Player B</option>
-              {filteredPlayerBOptions.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
+              {playerBOptions.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
           </label>
@@ -101,16 +155,14 @@ export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
             Winner
             <select
               required
-              value={winner}
-              onChange={(e) => setWinner(e.target.value)}
+              value={winnerId}
+              onChange={e => setWinnerId(e.target.value)}
               style={{ width: "100%" }}
-              disabled={!playerA || !playerB}
+              disabled={!playerAId || !playerBId}
             >
               <option value="">Select Winner</option>
-              {winnerOptions.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
+              {winnerOptions.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
           </label>
@@ -119,13 +171,11 @@ export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
             <select
               required
               value={gameType}
-              onChange={(e) => setGameType(e.target.value)}
+              onChange={e => setGameType(e.target.value)}
               style={{ width: "100%" }}
             >
-              {GAME_TYPES.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
+              {GAME_TYPES.map(g => (
+                <option key={g} value={g}>{g}</option>
               ))}
             </select>
           </label>
@@ -133,7 +183,7 @@ export default function EnterNew1v1Page({ onBackToMenu, onBackToLeaderboard }) {
             <input
               type="checkbox"
               checked={runout}
-              onChange={(e) => setRunout(e.target.checked)}
+              onChange={e => setRunout(e.target.checked)}
               style={{ width: 22, height: 22 }}
             />
             Winner had a runout
