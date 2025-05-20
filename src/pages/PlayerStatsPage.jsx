@@ -85,7 +85,7 @@ export default function PlayerStatsPage({ player, onBackToLeaderboard, onBackToM
 
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 520, marginTop: 30, marginBottom: 30 }}>
+      <div className="page-container" style={{ width: "100%", maxWidth: 520, marginTop: 0, marginBottom: 30 }}>
         <h1 style={{ fontSize: "2em", color: "var(--accent)", textAlign: "center" }}>
           {player.nickname || player.name}
         </h1>

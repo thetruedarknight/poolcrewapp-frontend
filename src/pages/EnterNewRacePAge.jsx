@@ -127,7 +127,7 @@ export default function EnterNewRacePage({ onBackToMenu, onBackToLeaderboard }) 
 
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 410, marginTop: 36, marginBottom: 36 }}>
+      <div className="page-container" style={{ width: "100%", maxWidth: 410, marginTop: 0, marginBottom: 36 }}>
         <h1 style={{ color: "var(--accent)", textAlign: "center", marginBottom: 16 }}>Enter New Race</h1>
         <form
           onSubmit={e => {

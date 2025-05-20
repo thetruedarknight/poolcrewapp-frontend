@@ -62,7 +62,7 @@ export default function LeaderboardPage({ onPlayerClick, onBackToMenu }) {
 
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 540, marginTop: 28, marginBottom: 28 }}>
+      <div className="page-container" style={{ width: "100%", maxWidth: 540, marginTop: 0, marginBottom: 28 }}>
         <h1 style={{ color: "var(--accent)", fontWeight: "bold", fontSize: "2.1em", textAlign: "center" }}>
           Leaderboard
         </h1>

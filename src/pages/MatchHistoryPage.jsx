@@ -108,7 +108,7 @@ export default function MatchHistoryPage({ onBackToMenu }) {
   // --- UI ---
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 860, marginTop: 32, marginBottom: 32 }}>
+      <div className="page-container" style={{ width: "100%", maxWidth: 860, marginTop: 0, marginBottom: 32 }}>
         <h1 style={{ color: "var(--accent)", textAlign: "center", marginBottom: 16 }}>Match History</h1>
         {loading ? (
           <div style={{ textAlign: "center", color: "#aaffc6", padding: 24 }}>Loading...</div>

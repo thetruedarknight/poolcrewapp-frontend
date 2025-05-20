@@ -157,7 +157,7 @@ export default function TrainingLogPage({ onBackToMenu }) {
   // --- UI ---
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 530, marginTop: 36, marginBottom: 36 }}>
+      <div className="page-container" style={{ width: "100%", maxWidth: 530, marginTop: 0, marginBottom: 36 }}>
         <h1 style={{ color: "var(--accent)", textAlign: "center", marginBottom: 18 }}>Enter Training Session</h1>
         {step === 1 ? (
           <form onSubmit={handleNextStep}>

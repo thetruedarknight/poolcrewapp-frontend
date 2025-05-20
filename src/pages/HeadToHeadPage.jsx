@@ -166,7 +166,7 @@ export default function HeadToHeadPage({ onBackToMenu }) {
   // --- UI ---
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 700, marginTop: 30, marginBottom: 30 }}>
+      <div className="page-container" style={{ width: "100%", maxWidth: 700, marginTop: 0, marginBottom: 30 }}>
         <h1 style={{ color: "var(--accent)", textAlign: "center", marginBottom: 12 }}>Head to Head Comparison</h1>
         {loading ? (
           <div style={{ textAlign: "center", color: "#aaffc6", padding: 24 }}>Loading data...</div>

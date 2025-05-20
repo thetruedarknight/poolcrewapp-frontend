@@ -54,7 +54,7 @@ export default function AddPlayerPage({ onBackToMenu, onBackToLeaderboard }) {
 
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 410, marginTop: 36, marginBottom: 36 }}>
+      <div className="page-container" style={{ width: "100%", maxWidth: 410, marginTop: 0, marginBottom: 36 }}>
         <h1 style={{ color: "var(--accent)", textAlign: "center", marginBottom: 20 }}>Add New Player</h1>
         <form onSubmit={handleSubmit} autoComplete="off">
           <label>
@@ -89,15 +89,24 @@ export default function AddPlayerPage({ onBackToMenu, onBackToLeaderboard }) {
             />
           </label>
           <label>
-            Player Color
-            <select name="color" value={form.color} onChange={handleChange} style={{ width: "100%" }}>
-              {COLORS.map((color) => (
-                <option key={color} value={color} style={{ background: color, color: "#222" }}>
-                  {color}
-                </option>
-              ))}
-            </select>
-          </label>
+  Player Color
+  <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "0.5em 0 1em 0" }}>
+    <input
+      type="color"
+      name="color"
+      value={form.color}
+      onChange={handleChange}
+      style={{
+        width: 44, height: 44, border: "none", padding: 0, background: "none", cursor: "pointer", borderRadius: "12px"
+      }}
+    />
+    <span style={{
+      background: "#172624", color: "#b3ffc3", padding: "0.5em 1em", borderRadius: 10, fontFamily: "monospace", fontSize: 16
+    }}>
+      {form.color}
+    </span>
+  </div>
+</label>
           <label>
             Starting Rating
             <input

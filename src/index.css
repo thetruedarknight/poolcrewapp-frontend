@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  box-sizing: border-box;
+}
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
 /* -- GLOBAL ROOT COLORS -- */
 :root {
   --accent: #20e878;
@@ -24,16 +31,16 @@
 }
 
 /* Reset & base styles */
-html, body {
+html, body, #root {
   min-height: 100vh;
   height: 100%;
   margin: 0;
   padding: 0;
+  background: var(--bg-gradient);
+  color: var(--text-light);
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-  background: #181F25;
-  color: #f9f9f9;
+  background-attachment: fixed;
 }
-
 /* Modern Card look for containers */
 .page-container, .card {
   background: #181F25;
