@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     );
     const sheets = google.sheets({ version: 'v4', auth: jwt });
 
-    const range = 'RatingHistory!A1:C';
+    const range = 'RatingHistory!A1:E';
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range,
