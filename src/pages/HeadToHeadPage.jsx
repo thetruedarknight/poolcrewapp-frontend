@@ -37,9 +37,11 @@ export default function HeadToHeadPage({ onBackToMenu }) {
 
   const [playerAId, setPlayerAId] = useState("");
   const [playerBId, setPlayerBId] = useState("");
+  const [gameType, setGameType] = useState(""); // <-- NEW for filter
   const [filtered, setFiltered] = useState([]);
   const [stats, setStats] = useState({});
   const [streak, setStreak] = useState({});
+  const [allGameTypes, setAllGameTypes] = useState([]);
 
   // Load players and matches
   useEffect(() => {
@@ -50,11 +52,15 @@ export default function HeadToHeadPage({ onBackToMenu }) {
     ]).then(([p, m]) => {
       setPlayers(p || []);
       setMatches(m || []);
+      // Extract unique game types
+      setAllGameTypes(
+        Array.from(new Set((m || []).map(x => (x.gameType || "").trim()).filter(Boolean))).sort()
+      );
       setLoading(false);
     });
   }, []);
 
-  // When playerA/B selected, filter matches and compute stats
+  // When playerA/B/gameType selected, filter matches and compute stats
   useEffect(() => {
     if (!playerAId || !playerBId || playerAId === playerBId) {
       setFiltered([]);
@@ -68,6 +74,7 @@ export default function HeadToHeadPage({ onBackToMenu }) {
         (m.playerAId === playerAId && m.playerBId === playerBId) ||
         (m.playerAId === playerBId && m.playerBId === playerAId)
       )
+      .filter(m => !gameType || m.gameType === gameType)
       .sort((a, b) => (b.date || "").localeCompare(a.date || "")); // Newest first
 
     setFiltered(vsMatches);
@@ -121,7 +128,7 @@ export default function HeadToHeadPage({ onBackToMenu }) {
     else if (curr === playerBId) setStreak({ who: "B", count: streakCt });
     else setStreak({ who: null, count: 0 });
 
-  }, [playerAId, playerBId, matches]);
+  }, [playerAId, playerBId, matches, gameType]); // <-- include gameType
 
   // Chart data
   const playerA = players.find(p => p.playerId === playerAId);
@@ -129,9 +136,13 @@ export default function HeadToHeadPage({ onBackToMenu }) {
   const total = (stats?.[playerAId]?.wins || 0) + (stats?.[playerBId]?.wins || 0);
 
   // Chart color mapping (player color or fallback)
+  const donutData = [
+  { name: getPlayerDisplayName(playerA), value: stats?.[playerA?.playerId]?.wins || 0 },
+  { name: getPlayerDisplayName(playerB), value: stats?.[playerB?.playerId]?.wins || 0 }
+];
   const donutColors = [
-    playerA?.color || "#39ecb5",
-    playerB?.color || "#f3722c"
+    playerA?.color || "#39ecb5", 
+    playerB?.color || "#f3722c"       
   ];
 
   // --- UI ---
@@ -143,10 +154,11 @@ export default function HeadToHeadPage({ onBackToMenu }) {
           <div style={{ textAlign: "center", color: "#aaffc6", padding: 24 }}>Loading data...</div>
         ) : (
           <>
+            {/* --- Player and Game Selectors --- */}
             <div style={{
-              display: "flex", gap: 14, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 24
+              display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 24
             }}>
-              <div style={{ flex: 2, minWidth: 160 }}>
+              <div style={{ flex: 2, minWidth: 120 }}>
                 <label>Player A<br />
                   <select
                     value={playerAId}
@@ -162,11 +174,21 @@ export default function HeadToHeadPage({ onBackToMenu }) {
                   </select>
                 </label>
               </div>
-              <div style={{
-                flex: 1, textAlign: "center", fontWeight: 700,
-                fontSize: "1.25em", padding: "0 6px"
-              }}>VS</div>
-              <div style={{ flex: 2, minWidth: 160 }}>
+              <div style={{ flex: 1, minWidth: 110, textAlign: "center" }}>
+                <label>Game Type<br />
+                  <select
+                    value={gameType}
+                    onChange={e => setGameType(e.target.value)}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">All Games</option>
+                    {allGameTypes.map(gt =>
+                      <option key={gt} value={gt}>{gt}</option>
+                    )}
+                  </select>
+                </label>
+              </div>
+              <div style={{ flex: 2, minWidth: 120 }}>
                 <label>Player B<br />
                   <select
                     value={playerBId}
@@ -183,9 +205,10 @@ export default function HeadToHeadPage({ onBackToMenu }) {
                 </label>
               </div>
             </div>
+            {/* --- Avatars, Donut, and Stats --- */}
             {playerAId && playerBId && playerAId !== playerBId && (
               <>
-                {/* Avatars and Donut chart - NEW LAYOUT */}
+                {/* Avatars and Donut chart */}
                 <div style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
                   gap: 0, marginBottom: 6, width: "100%", textAlign: "center"
@@ -199,34 +222,42 @@ export default function HeadToHeadPage({ onBackToMenu }) {
                     </div>
                   </div>
                   <div style={{
-                    flex: 2, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center"
+                    flex: 2, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative"
                   }}>
                     <div style={{
-                      width: 160, height: 140, display: "flex", alignItems: "center", justifyContent: "center"
+                      width: 170, height: 130, display: "flex", alignItems: "center", justifyContent: "center", position: "relative"
                     }}>
-                      <ResponsiveContainer width={160} height={120}>
+                      <ResponsiveContainer width={130} height={130}>
                         <PieChart>
                           <Pie
                             data={getDonutData(stats, playerA, playerB)}
                             dataKey="value"
                             cx="50%"
-                            cy="55%"
-                            innerRadius={32}
-                            outerRadius={54}
-                            startAngle={90}
-                            endAngle={-270}
-                            label={({ value }) =>
-                              total ? `${Math.round((value / total) * 100)}%` : "0%"
-                            }
+                            cy="50%"
+                            innerRadius={30}
+                            outerRadius={48}
+                            startAngle={270}
+                            endAngle={-90}
+                            label={false}
                             labelLine={false}
                           >
-                            {getDonutData(stats, playerA, playerB).map((entry, i) =>
-                              <Cell key={i} fill={donutColors[i]} />
-                            )}
+                            {[0, 1].map(i => <Cell key={i} fill={donutColors[i]} />)}
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
+                      {/* Percentages below the chart */}
+                      <div style={{
+                        position: "absolute", top: "85%", left: 0, width: "100%", textAlign: "center", fontSize: 16, fontWeight: 700
+                      }}>
+                        <span style={{ color: donutColors[0], marginRight: 12 }}>
+                          {total ? Math.round((stats?.[playerAId]?.wins || 0) / total * 100) : 0}%
+                        </span>
+                        <span style={{ color: donutColors[1] }}>
+                          {total ? Math.round((stats?.[playerBId]?.wins || 0) / total * 100) : 0}%
+                        </span>
+                      </div>
                     </div>
+                    {/* Legend */}
                     <div className="flex flex-row items-center justify-center gap-5" style={{ marginTop: 0 }}>
                       {[playerA, playerB].map((p, i) => (
                         <span key={p?.playerId} style={{
@@ -327,7 +358,7 @@ export default function HeadToHeadPage({ onBackToMenu }) {
                   </table>
                   {!filtered.length && (
                     <div style={{ color: "#fcb0b0", textAlign: "center", margin: 16 }}>
-                      No matches played between these players.
+                      No matches played between these players{gameType ? ` for ${gameType}` : ""}.
                     </div>
                   )}
                 </div>
