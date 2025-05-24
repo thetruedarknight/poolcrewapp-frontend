@@ -14,12 +14,10 @@ type TrainingLog = {
   Notes?: string
 };
 
-// Helper
 function getPlayerDisplayName(p: Player) {
   return p.nickname ? `${p.nickname}` : p.name;
 }
 
-// Main
 const COLORS = [
   "#F94144", "#277DA1", "#F3722C", "#4ECDC4", "#F9C74F",
   "#43AA8B", "#577590", "#FF7F51", "#90BE6D", "#D7263D"
@@ -34,15 +32,13 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
 
   // Filters
   const [selectedDrill, setSelectedDrill] = useState<string>("");
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [filterPlayer, setFilterPlayer] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
-  const [filterPlayer, setFilterPlayer] = useState<string>("");
 
   // Data
   const [chartData, setChartData] = useState<any[]>([]);
   const [playerStats, setPlayerStats] = useState<{ [playerId: string]: any }>({});
-  const [currentDrillName, setCurrentDrillName] = useState<string>("");
 
   // Load everything on mount
   useEffect(() => {
@@ -59,22 +55,17 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
     });
   }, []);
 
-  // Utility: lookup drill by ID
   function drillById(id: string): Drill | undefined {
     return drills.find(d => d.DrillID === id);
   }
 
-  // Recalc on filter change
+  // Compute chart and stats on filter change
   useEffect(() => {
-    // No filters? Show "select filter" prompt
     if (!selectedDrill && !filterPlayer) {
       setChartData([]);
       setPlayerStats({});
-      setCurrentDrillName("");
       return;
     }
-
-    // Filter logs by drill (unless all drills) and by player (unless all players)
     let filtered = logs as TrainingLog[];
     if (selectedDrill) filtered = filtered.filter(l => l.DrillID === selectedDrill);
     if (filterPlayer) filtered = filtered.filter(l => l.PlayerID === filterPlayer);
@@ -90,22 +81,14 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
       group[l.PlayerID][l.DrillID][l.Date].push(Number(l.Score));
     });
 
-    // What drills/players to show on chart
     const allPlayerIds =
       filterPlayer
         ? [filterPlayer]
-        : (selectedPlayers.length
-            ? selectedPlayers
-            : Array.from(new Set(filtered.map(l => l.PlayerID))));
-
+        : Array.from(new Set(filtered.map(l => l.PlayerID)));
     const allDrillIds =
       selectedDrill
         ? [selectedDrill]
         : Array.from(new Set(filtered.map(l => l.DrillID)));
-
-    // If "all drills" AND filterPlayer, chart across drills for that player (lines: one per drill)
-    // If "all drills" AND no filterPlayer, do nothing (no chart)
-    // If drill selected, chart lines are players (or player if filter set)
 
     let chartRows: any[] = [];
     let stats: { [key: string]: any } = {};
@@ -141,8 +124,6 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
           recent: percentages.length ? Math.round(percentages[percentages.length - 1] * 10) / 10 : 0,
         };
       });
-
-      setCurrentDrillName(""); // Hide heading
     } else if (selectedDrill) {
       // Drill selected: lines = players, x = date
       const playerLines = allPlayerIds;
@@ -174,20 +155,15 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
           recent: percentages.length ? Math.round(percentages[percentages.length - 1] * 10) / 10 : 0,
         };
       });
-
-      setCurrentDrillName(drillById(selectedDrill)?.Name || "");
     } else {
-      // no chart possible
       chartRows = [];
       stats = {};
-      setCurrentDrillName("");
     }
 
     setChartData(chartRows);
     setPlayerStats(stats);
-  }, [selectedDrill, selectedPlayers, dateFrom, dateTo, logs, drills, filterPlayer]);
+  }, [selectedDrill, dateFrom, dateTo, logs, drills, filterPlayer]);
 
-  // Player color helper
   function getColor(idx: number) {
     return COLORS[idx % COLORS.length];
   }
@@ -200,21 +176,11 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
     return getColor(idx >= 0 ? idx : 0);
   }
 
-  // Get drill options
   const drillOptions = drills.map(d => ({ value: d.DrillID, label: `${d.Name} — ${d.skillTested}` }));
-
-  // Get player options (filtered by drill)
-  const drillPlayerIds = selectedDrill
-    ? Array.from(new Set(logs.filter(l => l.DrillID === selectedDrill).map(l => l.PlayerID)))
-    : Array.from(new Set(logs.map(l => l.PlayerID)));
-  const playerOptions = players
-    .filter(p => drillPlayerIds.includes(p.playerId))
-    .map(p => ({ value: p.playerId, label: getPlayerDisplayName(p) }));
 
   // Mobile tip
   const isMobile = window.innerWidth < 600;
 
-  // ---- UI ----
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
       <div className="page-container" style={{ width: "100%", maxWidth: 780, marginTop: 0, marginBottom: 32 }}>
@@ -223,7 +189,6 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
           <div style={{ textAlign: "center", color: "#aaffc6", padding: 24 }}>Loading data...</div>
         ) : (
           <>
-            {/* FILTERS ROW */}
             <div style={{
               display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center",
               marginBottom: 18, justifyContent: "flex-start"
@@ -233,7 +198,7 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
                 <label>Drill<br />
                   <select
                     value={selectedDrill}
-                    onChange={e => { setSelectedDrill(e.target.value); setSelectedPlayers([]); }}
+                    onChange={e => setSelectedDrill(e.target.value)}
                     style={{ width: "100%", minWidth: 160 }}
                   >
                     <option value="">All Drills</option>
@@ -256,34 +221,6 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
                       </option>
                     ))}
                   </select>
-                </label>
-              </div>
-              {/* Multi-select Player (keep for when All Player is chosen) */}
-              <div style={{ flex: 3, minWidth: 180 }}>
-                <label>Players<br />
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
-                    {playerOptions.map((p, idx) => (
-                      <label key={p.value} style={{
-                        display: "flex", alignItems: "center", padding: "2px 9px",
-                        background: selectedPlayers.includes(p.value) ? "var(--accent-glow)" : "transparent",
-                        borderRadius: 8, color: selectedPlayers.includes(p.value) ? "#181F25" : "var(--text-light)",
-                        fontWeight: selectedPlayers.includes(p.value) ? 700 : 400, cursor: "pointer"
-                      }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedPlayers.includes(p.value)}
-                          disabled={!!filterPlayer} // If single-player filter, disable multi
-                          onChange={() => {
-                            setSelectedPlayers(selectedPlayers.includes(p.value)
-                              ? selectedPlayers.filter(id => id !== p.value)
-                              : [...selectedPlayers, p.value]);
-                          }}
-                          style={{ marginRight: 7 }}
-                        />
-                        {p.label}
-                      </label>
-                    ))}
-                  </div>
                 </label>
               </div>
               {/* Date range */}
@@ -326,7 +263,6 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
                 </label>
               </div>
             </div>
-            {/* --- CHART & STATS --- */}
             {(!selectedDrill && !filterPlayer) && (
               <div style={{ color: "#ffefb5", textAlign: "center", margin: 12 }}>
                 Please select a drill or player to view data.
