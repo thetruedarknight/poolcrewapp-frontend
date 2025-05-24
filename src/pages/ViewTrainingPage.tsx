@@ -37,11 +37,12 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
-  const [filterPlayer, setFilterPlayer] = useState<string>(""); // <-- NEW
+  const [filterPlayer, setFilterPlayer] = useState<string>("");
 
   // Data
   const [chartData, setChartData] = useState<any[]>([]);
   const [playerStats, setPlayerStats] = useState<{ [playerId: string]: any }>({});
+  const [currentDrillName, setCurrentDrillName] = useState<string>("");
 
   // Load everything on mount
   useEffect(() => {
@@ -58,81 +59,132 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
     });
   }, []);
 
+  // Utility: lookup drill by ID
+  function drillById(id: string): Drill | undefined {
+    return drills.find(d => d.DrillID === id);
+  }
+
   // Recalc on filter change
   useEffect(() => {
-    if (!selectedDrill) { setChartData([]); setPlayerStats({}); return; }
-    const drill = drills.find(d => d.DrillID === selectedDrill);
-    if (!drill) return;
+    // No filters? Show "select filter" prompt
+    if (!selectedDrill && !filterPlayer) {
+      setChartData([]);
+      setPlayerStats({});
+      setCurrentDrillName("");
+      return;
+    }
 
-    // Filter logs
-    let filtered = logs.filter(l => l.DrillID === selectedDrill);
-    if (selectedPlayers.length)
-      filtered = filtered.filter(l => selectedPlayers.includes(l.PlayerID));
-    if (dateFrom)
-      filtered = filtered.filter(l => l.Date >= dateFrom);
-    if (dateTo)
-      filtered = filtered.filter(l => l.Date <= dateTo);
-    if (filterPlayer)
-      filtered = filtered.filter(l => l.PlayerID === filterPlayer);
+    // Filter logs by drill (unless all drills) and by player (unless all players)
+    let filtered = logs as TrainingLog[];
+    if (selectedDrill) filtered = filtered.filter(l => l.DrillID === selectedDrill);
+    if (filterPlayer) filtered = filtered.filter(l => l.PlayerID === filterPlayer);
+    if (dateFrom) filtered = filtered.filter(l => l.Date >= dateFrom);
+    if (dateTo) filtered = filtered.filter(l => l.Date <= dateTo);
 
-    // Group by player & date (session)
-    const group: { [playerId: string]: { [date: string]: number[] } } = {};
+    // Group by player & drill & date (session)
+    const group: { [playerId: string]: { [drillId: string]: { [date: string]: number[] } } } = {};
     filtered.forEach(l => {
       if (!group[l.PlayerID]) group[l.PlayerID] = {};
-      if (!group[l.PlayerID][l.Date]) group[l.PlayerID][l.Date] = [];
-      group[l.PlayerID][l.Date].push(Number(l.Score));
+      if (!group[l.PlayerID][l.DrillID]) group[l.PlayerID][l.DrillID] = {};
+      if (!group[l.PlayerID][l.DrillID][l.Date]) group[l.PlayerID][l.DrillID][l.Date] = [];
+      group[l.PlayerID][l.DrillID][l.Date].push(Number(l.Score));
     });
 
-    // For chart: Build array of all session dates
-    const allDates = Array.from(new Set(filtered.map(l => l.Date))).sort();
-    // ---- Key change: If filterPlayer, only that, else all selected, else all available ----
-    const allPlayerIds = filterPlayer
-      ? [filterPlayer]
-      : (selectedPlayers.length
-          ? selectedPlayers
-          : Array.from(new Set(filtered.map(l => l.PlayerID))));
+    // What drills/players to show on chart
+    const allPlayerIds =
+      filterPlayer
+        ? [filterPlayer]
+        : (selectedPlayers.length
+            ? selectedPlayers
+            : Array.from(new Set(filtered.map(l => l.PlayerID))));
 
-    // Build chart rows: each row is { date, [playerId]: % }
-    const rows = allDates.map(date => {
-      const row: any = { date };
-      allPlayerIds.forEach((pid, idx) => {
-        if (group[pid] && group[pid][date]) {
-          // Average % for this session (sum of all sets / max * count)
-          const total = group[pid][date].reduce((a, b) => a + b, 0);
-          const max = Number(drill.MaxScore) * group[pid][date].length;
-          row[pid] = max > 0 ? Math.round((total / max) * 1000) / 10 : 0;
-        } else {
-          row[pid] = null;
-        }
-      });
-      return row;
-    });
+    const allDrillIds =
+      selectedDrill
+        ? [selectedDrill]
+        : Array.from(new Set(filtered.map(l => l.DrillID)));
 
-    // Stats per player
-    const stats: { [playerId: string]: any } = {};
-    allPlayerIds.forEach(pid => {
-      const playerSessions = group[pid] || {};
-      const percentages: number[] = [];
-      Object.values(playerSessions).forEach(scoreArr => {
-        const total = scoreArr.reduce((a, b) => a + b, 0);
-        const max = Number(drill.MaxScore) * scoreArr.length;
-        percentages.push(max > 0 ? (total / max) * 100 : 0);
+    // If "all drills" AND filterPlayer, chart across drills for that player (lines: one per drill)
+    // If "all drills" AND no filterPlayer, do nothing (no chart)
+    // If drill selected, chart lines are players (or player if filter set)
+
+    let chartRows: any[] = [];
+    let stats: { [key: string]: any } = {};
+
+    if (!selectedDrill && filterPlayer) {
+      // All drills for one player: lines = drills, x = date
+      const drillLines = allDrillIds;
+      const dates = Array.from(new Set(filtered.map(l => l.Date))).sort();
+
+      chartRows = dates.map(date => {
+        const row: any = { date };
+        drillLines.forEach(did => {
+          const scores = group[filterPlayer]?.[did]?.[date] || [];
+          const max = Number(drillById(did)?.MaxScore || 0) * scores.length;
+          const total = scores.reduce((a, b) => a + b, 0);
+          row[did] = max > 0 ? Math.round((total / max) * 1000) / 10 : null;
+        });
+        return row;
       });
-      if (percentages.length) {
+
+      drillLines.forEach(did => {
+        const sessions = group[filterPlayer]?.[did] || {};
+        const percentages: number[] = [];
+        Object.values(sessions).forEach(scoreArr => {
+          const max = Number(drillById(did)?.MaxScore || 0) * (scoreArr as number[]).length;
+          const total = (scoreArr as number[]).reduce((a, b) => a + b, 0);
+          percentages.push(max > 0 ? (total / max) * 100 : 0);
+        });
+        stats[did] = {
+          attempts: percentages.length,
+          avg: percentages.length ? Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length * 10) / 10 : 0,
+          best: percentages.length ? Math.round(Math.max(...percentages) * 10) / 10 : 0,
+          recent: percentages.length ? Math.round(percentages[percentages.length - 1] * 10) / 10 : 0,
+        };
+      });
+
+      setCurrentDrillName(""); // Hide heading
+    } else if (selectedDrill) {
+      // Drill selected: lines = players, x = date
+      const playerLines = allPlayerIds;
+      const dates = Array.from(new Set(filtered.map(l => l.Date))).sort();
+
+      chartRows = dates.map(date => {
+        const row: any = { date };
+        playerLines.forEach(pid => {
+          const scores = group[pid]?.[selectedDrill]?.[date] || [];
+          const max = Number(drillById(selectedDrill)?.MaxScore || 0) * scores.length;
+          const total = scores.reduce((a, b) => a + b, 0);
+          row[pid] = max > 0 ? Math.round((total / max) * 1000) / 10 : null;
+        });
+        return row;
+      });
+
+      playerLines.forEach(pid => {
+        const sessions = group[pid]?.[selectedDrill] || {};
+        const percentages: number[] = [];
+        Object.values(sessions).forEach(scoreArr => {
+          const max = Number(drillById(selectedDrill)?.MaxScore || 0) * (scoreArr as number[]).length;
+          const total = (scoreArr as number[]).reduce((a, b) => a + b, 0);
+          percentages.push(max > 0 ? (total / max) * 100 : 0);
+        });
         stats[pid] = {
           attempts: percentages.length,
-          avg: Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length * 10) / 10,
-          best: Math.round(Math.max(...percentages) * 10) / 10,
-          recent: Math.round(percentages[percentages.length - 1] * 10) / 10,
+          avg: percentages.length ? Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length * 10) / 10 : 0,
+          best: percentages.length ? Math.round(Math.max(...percentages) * 10) / 10 : 0,
+          recent: percentages.length ? Math.round(percentages[percentages.length - 1] * 10) / 10 : 0,
         };
-      } else {
-        stats[pid] = { attempts: 0, avg: 0, best: 0, recent: 0 };
-      }
-    });
+      });
 
-    setChartData(rows);
+      setCurrentDrillName(drillById(selectedDrill)?.Name || "");
+    } else {
+      // no chart possible
+      chartRows = [];
+      stats = {};
+      setCurrentDrillName("");
+    }
+
+    setChartData(chartRows);
     setPlayerStats(stats);
-
   }, [selectedDrill, selectedPlayers, dateFrom, dateTo, logs, drills, filterPlayer]);
 
   // Player color helper
@@ -143,12 +195,18 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
     const idx = players.findIndex(p => p.playerId === pid);
     return getColor(idx >= 0 ? idx : 0);
   }
+  function drillColor(did: string) {
+    const idx = drills.findIndex(d => d.DrillID === did);
+    return getColor(idx >= 0 ? idx : 0);
+  }
 
   // Get drill options
   const drillOptions = drills.map(d => ({ value: d.DrillID, label: `${d.Name} — ${d.skillTested}` }));
 
   // Get player options (filtered by drill)
-  const drillPlayerIds = Array.from(new Set(logs.filter(l => l.DrillID === selectedDrill).map(l => l.PlayerID)));
+  const drillPlayerIds = selectedDrill
+    ? Array.from(new Set(logs.filter(l => l.DrillID === selectedDrill).map(l => l.PlayerID)))
+    : Array.from(new Set(logs.map(l => l.PlayerID)));
   const playerOptions = players
     .filter(p => drillPlayerIds.includes(p.playerId))
     .map(p => ({ value: p.playerId, label: getPlayerDisplayName(p) }));
@@ -268,13 +326,18 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
                 </label>
               </div>
             </div>
-            {!selectedDrill && (
-              <div style={{ color: "#ffefb5", textAlign: "center", margin: 12 }}>Please select a drill to view data.</div>
+            {/* --- CHART & STATS --- */}
+            {(!selectedDrill && !filterPlayer) && (
+              <div style={{ color: "#ffefb5", textAlign: "center", margin: 12 }}>
+                Please select a drill or player to view data.
+              </div>
             )}
-            {selectedDrill && chartData.length === 0 && (
-              <div style={{ color: "#fcb0b0", textAlign: "center", margin: 16 }}>No training data for this drill and filter.</div>
+            {(selectedDrill || filterPlayer) && chartData.length === 0 && (
+              <div style={{ color: "#fcb0b0", textAlign: "center", margin: 16 }}>
+                No training data for this drill/player/filter.
+              </div>
             )}
-            {selectedDrill && chartData.length > 0 && (
+            {(selectedDrill || filterPlayer) && chartData.length > 0 && (
               <>
                 <div style={{ width: "100%", height: isMobile ? 240 : 320, marginBottom: 16 }}>
                   <ResponsiveContainer>
@@ -284,21 +347,44 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
                       <YAxis domain={[0, 100]} tickFormatter={v => v + "%"} />
                       <Tooltip formatter={(v: any) => `${v}%`} />
                       <Legend />
-                      {playerOptions.map((p, idx) => (
-                        (filterPlayer && p.value !== filterPlayer) ? null : (
-                          <Line
-                            key={p.value}
-                            type="monotone"
-                            dataKey={p.value}
-                            name={p.label}
-                            stroke={playerColor(p.value)}
-                            strokeWidth={2}
-                            dot={{ r: 2 }}
-                            isAnimationActive={false}
-                            connectNulls
-                          />
+                      {/* CHART LINES */}
+                      {selectedDrill
+                        ? ( // Drill selected: players as lines
+                          players
+                            .filter(p => !filterPlayer || p.playerId === filterPlayer)
+                            .filter(p => chartData.some(row => row[p.playerId] !== null))
+                            .map((p, idx) => (
+                              <Line
+                                key={p.playerId}
+                                type="monotone"
+                                dataKey={p.playerId}
+                                name={getPlayerDisplayName(p)}
+                                stroke={playerColor(p.playerId)}
+                                strokeWidth={2}
+                                dot={{ r: 2 }}
+                                isAnimationActive={false}
+                                connectNulls
+                              />
+                            ))
                         )
-                      ))}
+                        : ( // All drills for player: lines = drills
+                          drills
+                            .filter(d => chartData.some(row => row[d.DrillID] !== null))
+                            .map((d, idx) => (
+                              <Line
+                                key={d.DrillID}
+                                type="monotone"
+                                dataKey={d.DrillID}
+                                name={`${d.Name}`}
+                                stroke={drillColor(d.DrillID)}
+                                strokeWidth={2}
+                                dot={{ r: 2 }}
+                                isAnimationActive={false}
+                                connectNulls
+                              />
+                            ))
+                        )
+                      }
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -309,26 +395,53 @@ export default function ViewTrainingDataPage({ onBackToMenu }: { onBackToMenu: (
                   marginTop: 10,
                   justifyContent: "center",
                   width: "100%",
-                  maxWidth: 400, // Optional: set a max width so it doesn't stretch across the whole page
+                  maxWidth: 400,
                   marginLeft: "auto",
                   marginRight: "auto"
                 }}>
-                  {playerOptions.filter(p => !filterPlayer || p.value === filterPlayer).map((p, idx) => (
-                    <div key={p.value} style={{
-                      minWidth: 160, background: "#1c292a", borderRadius: 14, padding: "13px 15px",
-                      boxShadow: "0 2px 12px #39ecb534", color: playerColor(p.value)
-                    }}>
-                      <div style={{ fontWeight: 700, fontSize: "1.08em", color: "#d6ffd9" }}>
-                        {p.label}
-                      </div>
-                      <div style={{ fontSize: "1.0em", marginTop: 4 }}>
-                        <b>Attempts:</b> <span style={{ color: "#b9ffe0" }}>{playerStats[p.value]?.attempts || 0}</span><br />
-                        <b>Average:</b> <span style={{ color: "#aaffb7" }}>{playerStats[p.value]?.avg ?? 0}%</span><br />
-                        <b>Best:</b> <span style={{ color: "#fffa9d" }}>{playerStats[p.value]?.best ?? 0}%</span><br />
-                        <b>Recent:</b> <span style={{ color: "#ffd4d6" }}>{playerStats[p.value]?.recent ?? 0}%</span>
-                      </div>
-                    </div>
-                  ))}
+                  {/* STATS: show per-player for drill, or per-drill for player */}
+                  {selectedDrill
+                    ? (players
+                        .filter(p => !filterPlayer || p.playerId === filterPlayer)
+                        .filter(p => playerStats[p.playerId])
+                        .map((p, idx) => (
+                          <div key={p.playerId} style={{
+                            minWidth: 160, background: "#1c292a", borderRadius: 14, padding: "13px 15px",
+                            boxShadow: "0 2px 12px #39ecb534", color: playerColor(p.playerId)
+                          }}>
+                            <div style={{ fontWeight: 700, fontSize: "1.08em", color: "#d6ffd9" }}>
+                              {getPlayerDisplayName(p)}
+                            </div>
+                            <div style={{ fontSize: "1.0em", marginTop: 4 }}>
+                              <b>Attempts:</b> <span style={{ color: "#b9ffe0" }}>{playerStats[p.playerId]?.attempts || 0}</span><br />
+                              <b>Average:</b> <span style={{ color: "#aaffb7" }}>{playerStats[p.playerId]?.avg ?? 0}%</span><br />
+                              <b>Best:</b> <span style={{ color: "#fffa9d" }}>{playerStats[p.playerId]?.best ?? 0}%</span><br />
+                              <b>Recent:</b> <span style={{ color: "#ffd4d6" }}>{playerStats[p.playerId]?.recent ?? 0}%</span>
+                            </div>
+                          </div>
+                        ))
+                    )
+                    : (filterPlayer &&
+                        drills
+                          .filter(d => playerStats[d.DrillID])
+                          .map((d, idx) => (
+                            <div key={d.DrillID} style={{
+                              minWidth: 160, background: "#1c292a", borderRadius: 14, padding: "13px 15px",
+                              boxShadow: "0 2px 12px #39ecb534", color: drillColor(d.DrillID)
+                            }}>
+                              <div style={{ fontWeight: 700, fontSize: "1.08em", color: "#d6ffd9" }}>
+                                {d.Name}
+                              </div>
+                              <div style={{ fontSize: "1.0em", marginTop: 4 }}>
+                                <b>Attempts:</b> <span style={{ color: "#b9ffe0" }}>{playerStats[d.DrillID]?.attempts || 0}</span><br />
+                                <b>Average:</b> <span style={{ color: "#aaffb7" }}>{playerStats[d.DrillID]?.avg ?? 0}%</span><br />
+                                <b>Best:</b> <span style={{ color: "#fffa9d" }}>{playerStats[d.DrillID]?.best ?? 0}%</span><br />
+                                <b>Recent:</b> <span style={{ color: "#ffd4d6" }}>{playerStats[d.DrillID]?.recent ?? 0}%</span>
+                              </div>
+                            </div>
+                          ))
+                      )
+                  }
                 </div>
               </>
             )}
