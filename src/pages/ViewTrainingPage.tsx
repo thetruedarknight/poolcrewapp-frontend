@@ -1,19 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
-
-// --------- TYPES ----------
-type Player = {
-  playerId: string;
-  name: string;
-  nickname?: string;
-  avatarUrl?: string;
-};
 
 type Drill = {
   drillId: string;
   name: string;
   maxScore: number;
-  skillTested?: string;
+  skillTested: string;
+};
+
+type Player = {
+  playerId: string;
+  name: string;
+  nickname?: string;
 };
 
 type TrainingLog = {
@@ -21,247 +18,233 @@ type TrainingLog = {
   sessionId: string;
   drillId: string;
   playerId: string;
-  setNumber: number;
-  score: number;
+  setNumber: string;
+  score: string;
   notes?: string;
 };
 
-type Props = {
-  onBackToMenu: () => void;
-};
-
-// --------- COMPONENT ---------
-const ViewTrainingPage: React.FC<Props> = ({ onBackToMenu }) => {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [drills, setDrills] = useState<Drill[]>([]);
-  const [logs, setLogs] = useState<TrainingLog[]>([]);
-  const [viewMode, setViewMode] = useState<"drill" | "player">("drill");
-  const [selectedDrill, setSelectedDrill] = useState<string>("");
-  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(true);
-
-  // --------- DATA LOAD ---------
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetch("/api/getPlayers").then(r => r.json()) as Promise<Player[]>,
-      fetch("/api/getDrills").then(r => r.json()) as Promise<Drill[]>,
-      fetch("/api/getTrainingLogs").then(r => r.json()) as Promise<TrainingLog[]>
-    ]).then(([p, d, l]) => {
-      setPlayers(p || []);
-      setDrills(d || []);
-      setLogs(l || []);
-      setLoading(false);
-    });
-  }, []);
-
-  // --------- UTILS ----------
-  function getPlayerName(player?: Player) {
-    return player?.nickname ? player.nickname : player?.name || "";
-  }
-  function getDrillName(drill?: Drill) {
-    return drill?.name || "";
-  }
-
-  // --------- GROUP & FILTER ----------
-  function groupBy<T>(arr: T[], key: keyof T): Record<string, T[]> {
-    return arr.reduce((acc, x) => {
-      const groupKey = x[key] as string;
-      (acc[groupKey] = acc[groupKey] || []).push(x);
-      return acc;
-    }, {} as Record<string, T[]>);
-  }
-
-  // Filter logs
-  let filteredLogs = logs;
-  if (viewMode === "drill" && selectedDrill)
-    filteredLogs = filteredLogs.filter(l => l.drillId === selectedDrill);
-  if (viewMode === "player" && selectedPlayer)
-    filteredLogs = filteredLogs.filter(l => l.playerId === selectedPlayer);
-
-  // Dates for grouping
-  const allDates = Array.from(new Set(filteredLogs.map(l => l.date))).sort();
-
-  // --------- DATA FOR CHART ----------
-  let group: Record<string, TrainingLog[]> = {};
-let xAxisKey: string = "date";
-let linesData: any[] = [];
-
-if (viewMode === "drill") {
-  group = groupBy(filteredLogs, "playerId");
-  xAxisKey = "date";
-  linesData = allDates.map(date => {
-    let row: any = { date };
-    for (const playerId in group) {
-      const maxScore = drills.find(d => d.drillId === selectedDrill)?.maxScore || 1;
-      const setScores = group[playerId].filter(l => l.date === date).map(l => Number(l.score));
-      if (setScores.length)
-        row[playerId] = Math.round((setScores.reduce((a, b) => a + b, 0) / (setScores.length * maxScore)) * 100);
-    }
-    return row;
-  });
-} else if (viewMode === "player") {
-  group = groupBy(filteredLogs, "drillId");
-  xAxisKey = "date";
-  linesData = allDates.map(date => {
-    let row: any = { date };
-    for (const drillId in group) {
-      const maxScore = drills.find(d => d.drillId === drillId)?.maxScore || 1;
-      const setScores = group[drillId].filter(l => l.date === date).map(l => Number(l.score));
-      if (setScores.length)
-        row[drillId] = Math.round((setScores.reduce((a, b) => a + b, 0) / (setScores.length * maxScore)) * 100);
-    }
-    return row;
-  });
+function getPlayerName(p?: Player) {
+  return p ? (p.nickname || p.name) : "";
+}
+function getDrillName(d?: Drill) {
+  return d ? d.name : "";
+}
+function groupBy<T>(arr: T[], key: keyof T) {
+  return arr.reduce((acc, item) => {
+    const val = item[key] as string;
+    if (!acc[val]) acc[val] = [];
+    acc[val].push(item);
+    return acc;
+  }, {} as Record<string, T[]>);
 }
 
-
-  function getColor(idx: number) {
-    const colors = ["#20e878", "#39ecb5", "#43AA8B", "#1A8FE3", "#F94144", "#F3722C", "#F8961E", "#F9C74F"];
-    return colors[idx % colors.length];
-  }
-
-  // --------- RENDER ---------
+// Dummy chart for example, replace with your Recharts etc.
+function LineChart({ data, lines, xAxisKey }: any) {
+  // In your actual app, use the real charting lib!
   return (
-    <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg-gradient)" }}>
-      <div className="page-container" style={{ width: "100%", maxWidth: 700, marginTop: 0, marginBottom: 30 }}>
-        <h1 style={{ color: "var(--accent)", textAlign: "center" }}>Training Data</h1>
-        <div style={{ display: "flex", gap: 18, justifyContent: "center", marginBottom: 22 }}>
-          <button
-            className={`btn ${viewMode === "drill" ? "bg-[#273036]" : ""}`}
-            onClick={() => setViewMode("drill")}
-            style={{ borderRadius: 10, width: 120, background: viewMode === "drill" ? "#273036" : undefined }}
-          >
-            By Drill
-          </button>
-          <button
-            className={`btn ${viewMode === "player" ? "bg-[#273036]" : ""}`}
-            onClick={() => setViewMode("player")}
-            style={{ borderRadius: 10, width: 120, background: viewMode === "player" ? "#273036" : undefined }}
-          >
-            By Player
-          </button>
-        </div>
-        {loading ? (
-          <div style={{ color: "#aaffc6", textAlign: "center", margin: 22 }}>Loading...</div>
-        ) : (
-          <>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
-              {viewMode === "drill" && (
-                <label>
-                  Drill:<br />
-                  <select
-                    value={selectedDrill}
-                    onChange={e => setSelectedDrill(e.target.value)}
-                    style={{ width: 170, marginBottom: 0 }}
-                  >
-                    <option value="">All Drills</option>
-                    {drills.map(d =>
-                      <option key={d.drillId} value={d.drillId}>{getDrillName(d)}</option>
-                    )}
-                  </select>
-                </label>
-              )}
-              {viewMode === "player" && (
-                <label>
-                  Player:<br />
-                  <select
-                    value={selectedPlayer}
-                    onChange={e => setSelectedPlayer(e.target.value)}
-                    style={{ width: 170, marginBottom: 0 }}
-                  >
-                    <option value="">All Players</option>
-                    {players.map(p =>
-                      <option key={p.playerId} value={p.playerId}>{getPlayerName(p)}</option>
-                    )}
-                  </select>
-                </label>
-              )}
-            </div>
-            {/* Chart */}
-            <div style={{ width: "100%", height: 260, marginBottom: 22 }}>
-              <ResponsiveContainer>
-                <LineChart data={linesData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey={xAxisKey} />
-                  <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} />
-                  <Tooltip formatter={v => `${v}%`} />
-                  <Legend />
-                  {Object.keys(group || {}).map((key, idx) => {
-                    let label: string;
-                    if (viewMode === "drill") {
-                      const player = players.find(p => p.playerId === key);
-                      label = getPlayerName(player);
-                    } else {
-                      const drill = drills.find(d => d.drillId === key);
-                      label = getDrillName(drill);
-                    }
-                    return (
-                      <Line
-                        key={key}
-                        type="monotone"
-                        dataKey={key}
-                        name={label}
-                        stroke={getColor(idx)}
-                        dot={false}
-                        strokeWidth={3}
-                      />
-                    );
-                  })}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {/* Table */}
-            <div style={{ width: "100%", overflowX: "auto" }}>
-              <table style={{ width: "100%", background: "#172227", borderRadius: 10, overflow: "hidden" }}>
-                <thead>
-                  <tr style={{ color: "#39ecb5", background: "#1a2227" }}>
-                    <th>Date</th>
-                    {viewMode === "drill" ?
-                      <th>Player</th> :
-                      <th>Drill</th>
-                    }
-                    <th>Set</th>
-                    <th>Score</th>
-                    <th>Percent</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLogs.length ? filteredLogs.map((l, i) => {
-                    const player = players.find(p => p.playerId === l.playerId);
-                    const drill = drills.find(d => d.drillId === l.drillId);
-                    const percent = Math.round((Number(l.score) / (drill?.maxScore || 1)) * 100);
-                    return (
-                      <tr key={i} style={{ color: "#e7ffe0" }}>
-                        <td>{l.date}</td>
-                        <td>{viewMode === "drill" ? getPlayerName(player) : getDrillName(drill)}</td>
-                        <td>{l.setNumber}</td>
-                        <td>{l.score}</td>
-                        <td>{percent}%</td>
-                        <td>{l.notes || ""}</td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr>
-                      <td colSpan={6} style={{ color: "#fcb0b0", textAlign: "center" }}>
-                        No training data.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-        <button
-          className="btn"
-          style={{ width: "100%", marginTop: 20, background: "#273036", color: "#fff" }}
-          onClick={onBackToMenu}
-        >Return to Main Menu</button>
+    <div style={{ minHeight: 180, margin: "2em 0", color: "#20e878", textAlign: "center" }}>
+      <div>
+        {lines.length === 0
+          ? <span>No chart data.</span>
+          : <span style={{ fontWeight: 700 }}>[Chart would render here]</span>
+        }
       </div>
     </div>
   );
-};
+}
 
-export default ViewTrainingPage;
+export default function ViewTrainingPage({ onBackToMenu }: { onBackToMenu: () => void }) {
+  const [logs, setLogs] = useState<TrainingLog[]>([]);
+  const [drills, setDrills] = useState<Drill[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [viewMode, setViewMode] = useState<"drill" | "player">("drill");
+  const [selectedDrill, setSelectedDrill] = useState<string>("");
+  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
+
+  // Fetch all data on mount
+  useEffect(() => {
+    (async () => {
+      // Replace with your API endpoints!
+      const logs = await fetch("/api/getTrainingLogs").then(r => r.json());
+      const drills = await fetch("/api/getDrills").then(r => r.json());
+      const players = await fetch("/api/getPlayers").then(r => r.json());
+      setLogs(logs);
+      setDrills(drills);
+      setPlayers(players);
+    })();
+  }, []);
+
+  // For filtering
+  let filteredLogs = logs;
+  if (viewMode === "drill" && selectedDrill && selectedDrill !== "all") {
+    filteredLogs = filteredLogs.filter(l => l.drillId === selectedDrill);
+  }
+  if (viewMode === "player" && selectedPlayer && selectedPlayer !== "all") {
+    filteredLogs = filteredLogs.filter(l => l.playerId === selectedPlayer);
+  }
+
+  // Chart Data (lines, xAxis, etc)
+  let group: Record<string, TrainingLog[]> = {};
+  let xAxisKey: string = "date";
+  let linesData: any[] = [];
+  let lineKeys: string[] = [];
+  let allDates: string[] = Array.from(new Set(filteredLogs.map(l => l.date))).sort();
+
+  if ((viewMode === "drill" && selectedDrill && selectedDrill !== "all") ||
+      (viewMode === "player" && selectedPlayer && selectedPlayer !== "all")) {
+    if (viewMode === "drill") {
+      group = groupBy(filteredLogs, "playerId");
+      lineKeys = Object.keys(group);
+      linesData = allDates.map(date => {
+        let row: any = { date };
+        for (const playerId of lineKeys) {
+          const maxScore = drills.find(d => d.drillId === selectedDrill)?.maxScore || 1;
+          const scores = group[playerId].filter(l => l.date === date).map(l => Number(l.score));
+          if (scores.length)
+            row[playerId] = Math.round((scores.reduce((a, b) => a + b, 0) / (scores.length * maxScore)) * 100);
+        }
+        return row;
+      });
+    } else if (viewMode === "player") {
+      group = groupBy(filteredLogs, "drillId");
+      lineKeys = Object.keys(group);
+      linesData = allDates.map(date => {
+        let row: any = { date };
+        for (const drillId of lineKeys) {
+          const maxScore = drills.find(d => d.drillId === drillId)?.maxScore || 1;
+          const scores = group[drillId].filter(l => l.date === date).map(l => Number(l.score));
+          if (scores.length)
+            row[drillId] = Math.round((scores.reduce((a, b) => a + b, 0) / (scores.length * maxScore)) * 100);
+        }
+        return row;
+      });
+    }
+  }
+
+  // For dropdowns
+  const drillOptions = [{ drillId: "all", name: "All Drills", maxScore: 1, skillTested: "" }, ...drills];
+  const playerOptions = [{ playerId: "all", name: "All Players" }, ...players];
+
+  return (
+    <div className="page-container" style={{ maxWidth: 900 }}>
+      <h1 style={{ textAlign: "center", color: "var(--accent)" }}>Training Data</h1>
+      <div style={{ textAlign: "center", margin: "1.2em 0 1em 0" }}>
+        <button
+          className="btn"
+          style={{
+            borderRadius: 14,
+            background: viewMode === "drill" ? "var(--accent)" : "#202f24",
+            color: viewMode === "drill" ? "#181F25" : "#ebebeb",
+            marginRight: 18,
+            boxShadow: viewMode === "drill" ? "0 2px 16px #57efb288" : "none"
+          }}
+          onClick={() => { setViewMode("drill"); setSelectedPlayer(""); }}
+        >
+          By Drill
+        </button>
+        <button
+          className="btn"
+          style={{
+            borderRadius: 14,
+            background: viewMode === "player" ? "var(--accent)" : "#202f24",
+            color: viewMode === "player" ? "#181F25" : "#ebebeb",
+            boxShadow: viewMode === "player" ? "0 2px 16px #57efb288" : "none"
+          }}
+          onClick={() => { setViewMode("player"); setSelectedDrill(""); }}
+        >
+          By Player
+        </button>
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        {viewMode === "drill" ? (
+          <label>
+            Drill:<br />
+            <select
+              value={selectedDrill}
+              onChange={e => setSelectedDrill(e.target.value)}
+              style={{ minWidth: 180, borderRadius: 10, padding: 6, fontSize: 17, marginTop: 3 }}
+            >
+              {drillOptions.map(d => (
+                <option value={d.drillId} key={d.drillId}>{d.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label>
+            Player:<br />
+            <select
+              value={selectedPlayer}
+              onChange={e => setSelectedPlayer(e.target.value)}
+              style={{ minWidth: 180, borderRadius: 10, padding: 6, fontSize: 17, marginTop: 3 }}
+            >
+              {playerOptions.map(p => (
+                <option value={p.playerId} key={p.playerId}>{getPlayerName(p)}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      {/* Chart */}
+      <LineChart
+        data={linesData}
+        lines={lineKeys}
+        xAxisKey="date"
+      />
+
+      {/* Table */}
+      <div style={{
+        background: "#181F25",
+        borderRadius: 16,
+        padding: "1.2em",
+        margin: "1.7em auto 0 auto",
+        boxShadow: "0 2px 16px #14321544"
+      }}>
+        <table style={{
+          width: "100%", color: "#ebebeb", borderSpacing: 0,
+        }}>
+          <thead>
+            <tr style={{ color: "var(--accent)" }}>
+              <th style={{ paddingBottom: 8 }}>Date</th>
+              <th>{viewMode === "drill" ? "Player" : "Drill"}</th>
+              <th>Set</th>
+              <th>Score</th>
+              <th>Percent</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredLogs.length ? filteredLogs.map((l, i) => {
+              const player = players.find(p => p.playerId === l.playerId);
+              const drill = drills.find(d => d.drillId === l.drillId);
+              let percent = "";
+              if (drill && drill.maxScore && Number(drill.maxScore) > 0) {
+                percent = Math.round((Number(l.score) / Number(drill.maxScore)) * 100) + "%";
+              }
+              return (
+                <tr key={i} style={{ color: "#e7ffe0" }}>
+                  <td>{l.date}</td>
+                  <td>{viewMode === "drill" ? getPlayerName(player) : getDrillName(drill)}</td>
+                  <td>{l.setNumber}</td>
+                  <td>{l.score}</td>
+                  <td>{percent}</td>
+                  <td>{l.notes || ""}</td>
+                </tr>
+              );
+            }) : (
+              <tr>
+                <td colSpan={6} style={{ color: "#fcb0b0", textAlign: "center" }}>
+                  No training data found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <button className="btn fixed-bottom-nav" onClick={onBackToMenu}>
+        Return to Main Menu
+      </button>
+    </div>
+  );
+}
